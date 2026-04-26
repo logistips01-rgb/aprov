@@ -1,0 +1,8 @@
+streamlit
+pandas
+openpyxl
+firebase-admin
+python-dotenv
+groq
+plotly
+anthropic
