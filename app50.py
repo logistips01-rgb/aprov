@@ -25,7 +25,7 @@ except Exception:
 # ─────────────────────────────────────────────
 # FIREBASE
 # ─────────────────────────────────────────────
-FIREBASE_KEY = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'aprov-c526a-firebase-adminsdk-fbsvc-286a32de56.json')
+FIREBASE_KEY = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'aprov-c526a-firebase-adminsdk-fbsvc-c7b86e52ba.json')
 
 def get_firestore():
     import firebase_admin
@@ -169,6 +169,32 @@ def firebase_borrar_df(coleccion, doc_id):
         return False, str(e)
 
 st.set_page_config(page_title="Aprovisionamiento Aldelis", layout="wide")
+
+# ─────────────────────────────────────────────
+# CONTROL DE ACCESO
+# ─────────────────────────────────────────────
+def check_password():
+    if 'autenticado' not in st.session_state:
+        st.session_state.autenticado = False
+    if not st.session_state.autenticado:
+        st.image("https://www.aldelis.es/wp-content/uploads/2021/03/logo-aldelis.png", width=200) if False else None
+        st.title("🔒 Aprovisionamiento Aldelis")
+        pwd = st.text_input("Contraseña:", type="password")
+        if st.button("Entrar"):
+            password_correcta = os.getenv("APP_PASSWORD", "aldelis2025")
+            try:
+                if hasattr(st, 'secrets') and 'APP_PASSWORD' in st.secrets._secrets:
+                    password_correcta = st.secrets['APP_PASSWORD']
+            except Exception:
+                pass
+            if pwd == password_correcta:
+                st.session_state.autenticado = True
+                st.rerun()
+            else:
+                st.error("Contraseña incorrecta.")
+        st.stop()
+
+check_password()
 
 # ─────────────────────────────────────────────
 # COLUMNAS ESPERADAS (fuente de verdad única)
