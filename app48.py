@@ -595,6 +595,22 @@ if menu == "📂 Cargar Archivos":
     f_stock    = st.file_uploader("2. Stock Actual (.xlsx)", type="xlsx")
     f_consumos = st.file_uploader("3. Histórico Consumos (.xlsx)", type="xlsx")
 
+    # Archivo de paletización permanente
+    with st.expander("📦 Archivo de Paletización (envases)"):
+        f_pal_main = st.file_uploader("Subir/actualizar paletización (.xlsx)", type="xlsx", key="fpal_main")
+        if f_pal_main and st.button("💾 Guardar paletización", key="btn_pal_main"):
+            df_pal_main = pd.read_excel(f_pal_main)
+            df_pal_main = normalizar_columnas(df_pal_main)
+            st.session_state.df_paletizacion = df_pal_main
+            df_a_firebase(df_pal_main, 'logistica', 'df_paletizacion')
+            st.success(f"✅ {len(df_pal_main)} envases guardados en Firebase.")
+            st.rerun()
+        if st.session_state.df_paletizacion is not None:
+            st.info(f"✅ {len(st.session_state.df_paletizacion)} envases cargados.")
+            st.dataframe(st.session_state.df_paletizacion.iloc[:,[0]], use_container_width=True)
+        else:
+            st.warning("Sin archivo de paletización. Súbelo aquí para que persista.")
+
     if st.button("🚀 Sincronizar"):
         if not (f_maestro and f_stock and f_consumos):
             st.error("Sube los 3 archivos antes de sincronizar.")
@@ -787,7 +803,7 @@ elif menu == "📊 Dashboard":
 
     # --- Días de cobertura (stock total / CDM) ---
     df['Dias_stock'] = df.apply(
-        lambda r: round((r['Pal_Interno'] + r['Pal_Merca'] + r['Pal_TXT'] + r['Pal_Transito']) / r['CDM_pal'])
+        lambda r: round(r['Pal_Interno'] / r['CDM_pal'])
         if r['CDM_pal'] > 0 else 999, axis=1
     )
 
@@ -1605,6 +1621,12 @@ elif menu == "🏷️ Etiquetas":
 
         # ── CONSUMO MENSUAL DESDE VENTAS ───────────────────────
         ventas['Unidades'] = pd.to_numeric(ventas['Unidades'], errors='coerce').fillna(0).abs()
+        # Preservar Descripcion si existe
+        if 'Descripcion' not in ventas.columns:
+            for col in ventas.columns:
+                if 'desc' in col.lower():
+                    ventas = ventas.rename(columns={col: 'Descripcion'})
+                    break
 
         if st.session_state.df_materiales is None:
             st.error("❌ Primero carga el Excel de Materiales Asociados en el módulo 🔗 Materiales.")
@@ -1911,23 +1933,16 @@ elif menu == "🔍 Previsión y Obsoletos":
     for col in ['Stock_merca', 'Stock_txt', 'Stock_avitrans']:
         if col not in df_band.columns:
             df_band[col] = 0
-    # Solo interno + transito 1 para planificacion
-    t_plan = st.session_state.df_transito.groupby('Referencia')['Cantidad'].sum().reset_index().rename(columns={'Cantidad': 'Transito_plan'})
-    t_plan['Referencia'] = t_plan['Referencia'].astype(str).str.strip().str.upper()
-    df_band = df_band.merge(t_plan, on='Referencia', how='left')
-    df_band['Transito_plan'] = df_band['Transito_plan'].fillna(0)
-    df_band['Stock_total_ud'] = df_band['Stock_interno'].fillna(0) + df_band['Transito_plan']
+    # Solo stock interno para planificacion
+    df_band['Stock_total_ud'] = df_band['Stock_interno'].fillna(0)
 
     df_etq_cp = None
     refs_maestro_etq = set()
     if st.session_state.df_etiquetas_final is not None:
         df_etq_cp = st.session_state.df_etiquetas_final.copy()
         df_etq_cp['Referencia'] = df_etq_cp['Referencia'].astype(str).str.strip().str.upper()
-        t_etq_plan = st.session_state.df_transito_etq.groupby('Referencia')['Cantidad'].sum().reset_index().rename(columns={'Cantidad': 'Transito_etq_plan'})
-        t_etq_plan['Referencia'] = t_etq_plan['Referencia'].astype(str).str.strip().str.upper()
-        df_etq_cp = df_etq_cp.merge(t_etq_plan, on='Referencia', how='left')
-        df_etq_cp['Transito_etq_plan'] = df_etq_cp['Transito_etq_plan'].fillna(0)
-        df_etq_cp['Stock_total_ud'] = df_etq_cp['Stock_interno'].fillna(0) + df_etq_cp['Transito_etq_plan']
+        # Solo stock interno para planificacion
+        df_etq_cp['Stock_total_ud'] = df_etq_cp['Stock_interno'].fillna(0)
         refs_maestro_etq = set(df_etq_cp['Referencia'].unique())
 
     import io
@@ -2611,6 +2626,72 @@ elif menu == "🧠 Logística AI":
 
                         contexto_enriquecido = '\n'.join(contexto_extra) + '\n\n' + contexto if contexto_extra else contexto
 
+                        # Busqueda por descripcion en DataFrames
+                        palabras = [p for p in pregunta_actual.lower().split() if len(p) > 3
+                                   and p not in ['cual','como','donde','tiene','cuanto','cuantos','cuantas',
+                                                 'dame','dime','para','esta','este','tengo','quiero','busca',
+                                                 'referencias','referencia','que','hay','del','los','las']]
+                        if palabras:
+                            desc_extra = []
+                            for palabra in palabras[:3]:
+                                if st.session_state.df_final is not None:
+                                    df_bd = st.session_state.df_final.copy()
+                                    mask = df_bd['Descripcion'].astype(str).str.lower().str.contains(palabra, na=False)
+                                    for _, r in df_bd[mask].head(5).iterrows():
+                                        desc_extra.append(f"BANDEJA ref={r['Referencia']} desc={r.get('Descripcion','')} uds_palet={r.get('Unidades_palet','')} stock_int={r.get('Stock_interno','')}")
+                                if st.session_state.df_etiquetas_final is not None:
+                                    df_ed = st.session_state.df_etiquetas_final.copy()
+                                    mask = df_ed['Descripcion'].astype(str).str.lower().str.contains(palabra, na=False)
+                                    for _, r in df_ed[mask].head(5).iterrows():
+                                        desc_extra.append(f"ETIQUETA ref={r['Referencia']} desc={r.get('Descripcion','')} consumo_mes={r.get('Consumo_mes','')} stock={r.get('Stock_interno','')}")
+                                if st.session_state.df_ventas is not None and 'Descripcion' in st.session_state.df_ventas.columns:
+                                    df_vd = st.session_state.df_ventas.copy()
+                                    df_vd['Referencia'] = df_vd['Referencia'].astype(str).str.strip().str.upper().str.zfill(6)
+                                    mask = df_vd['Descripcion'].astype(str).str.lower().str.contains(palabra, na=False)
+                                    for _, r in df_vd[mask].drop_duplicates('Referencia').head(5).iterrows():
+                                        desc_extra.append(f"VENTA ref={r['Referencia']} desc={r.get('Descripcion','')} uds={r.get('Unidades','')}")
+                                        # Cruzar con materiales para encontrar bandeja
+                                        if st.session_state.df_materiales is not None and st.session_state.df_final is not None:
+                                            mat_vd = st.session_state.df_materiales.copy()
+                                            mat_vd['Referencia'] = mat_vd['Referencia'].astype(str).str.strip().str.upper().str.zfill(6)
+                                            mat_vd['Codigo'] = mat_vd['Codigo'].astype(str).str.strip().str.upper()
+                                            refs_bv = set(st.session_state.df_final['Referencia'].astype(str).str.strip().str.upper())
+                                            df_bv = st.session_state.df_final.copy()
+                                            df_bv['Referencia'] = df_bv['Referencia'].astype(str).str.strip().str.upper()
+                                            import re as re_vd
+                                            bandejas_vd = mat_vd[(mat_vd['Referencia'] == r['Referencia']) & (mat_vd['Codigo'].isin(refs_bv))]
+                                            for _, bv in bandejas_vd.iterrows():
+                                                fila_bv = df_bv[df_bv['Referencia'] == bv['Codigo']]
+                                                if not fila_bv.empty:
+                                                    rb = fila_bv.iloc[0]
+                                                    nums_bv = re_vd.findall(r'\d+', str(rb.get('Descripcion','')))
+                                                    medidas_bv = f"{int(nums_bv[0])*10}x{int(nums_bv[1])*10}x{nums_bv[2]}mm" if len(nums_bv)>=3 else ""
+                                                    desc_extra.append(f"BANDEJA del producto {r['Referencia']}: ref={bv['Codigo']} desc={rb.get('Descripcion','')} medidas={medidas_bv} uds_palet={rb.get('Unidades_palet','')}")
+                            if desc_extra:
+                                # Cruzar productos encontrados con materiales para encontrar bandeja
+                                if st.session_state.df_materiales is not None and st.session_state.df_final is not None:
+                                    mat_ag = st.session_state.df_materiales.copy()
+                                    mat_ag['Referencia'] = mat_ag['Referencia'].astype(str).str.strip().str.upper().str.zfill(6)
+                                    mat_ag['Codigo'] = mat_ag['Codigo'].astype(str).str.strip().str.upper()
+                                    refs_band_ag = set(st.session_state.df_final['Referencia'].astype(str).str.strip().str.upper())
+                                    df_band_ag = st.session_state.df_final.copy()
+                                    df_band_ag['Referencia'] = df_band_ag['Referencia'].astype(str).str.strip().str.upper()
+                                    for linea in desc_extra[:]:
+                                        if linea.startswith('VENTA') or linea.startswith('ETIQUETA'):
+                                            import re as re_ag
+                                            ref_match = re_ag.search(r'ref=(\S+)', linea)
+                                            if ref_match:
+                                                ref_prod = ref_match.group(1).zfill(6)
+                                                bandejas_prod = mat_ag[(mat_ag['Referencia'] == ref_prod) & (mat_ag['Codigo'].isin(refs_band_ag))]
+                                                for _, bp in bandejas_prod.iterrows():
+                                                    fila_bp = df_band_ag[df_band_ag['Referencia'] == bp['Codigo']]
+                                                    if not fila_bp.empty:
+                                                        rb = fila_bp.iloc[0]
+                                                        nums_bp = re_ag.findall(r'\d+', str(rb.get('Descripcion','')))
+                                                        medidas_bp = f"{int(nums_bp[0])*10}x{int(nums_bp[1])*10}x{nums_bp[2]}mm" if len(nums_bp)>=3 else ""
+                                                        desc_extra.append(f"BANDEJA asociada al producto {ref_prod}: ref={bp['Codigo']} desc={rb.get('Descripcion','')} medidas={medidas_bp} uds_palet={rb.get('Unidades_palet','')}")
+                                contexto_enriquecido = '\n'.join(desc_extra) + '\n\n' + contexto_enriquecido
+
                         system_prompt = f"""Eres un agente de logística inteligente de Aldelis, especializado en análisis de inventario, aprovisionamiento y planificación de producción.
 
 Archivos disponibles: {archivos_lista}
@@ -2625,9 +2706,11 @@ INSTRUCCIONES:
 - Responde siempre en español, de forma concisa y práctica
 - Usa los datos reales para responder con precisión
 - Para paletizaciones: palet = 1200x800mm, altura máx ~2000mm. Bandejas: LxA en cm→mm (*10), alto en mm. Envases en mm
-- Para calcular si una bandeja cabe en un envase: compara dimensiones interiores del envase con dimensiones de la bandeja
-- Las bandejas SIEMPRE se colocan una encima de otra y una al lado de la otra. El cálculo correcto es: (largo_envase/largo_bandeja) x (ancho_envase/ancho_bandeja) x (alto_envase/alto_bandeja), redondeando hacia abajo en cada dimensión
+- Para calcular si una bandeja cabe en un envase: usa SIEMPRE las dimensiones INTERIORES del envase, que están en la columna "dimensiones interiores (mm)" del archivo "Paletizacion"
+- Las dimensiones de todos los envases (IFCO, EUROPOOL, etc.) están en el archivo "Paletizacion" — búscalas ahí siempre
+- Las bandejas SIEMPRE se colocan una encima de otra y una al lado de la otra. El cálculo correcto es: (largo_interior/largo_bandeja) x (ancho_interior/ancho_bandeja) x (alto_interior/alto_bandeja), redondeando hacia abajo en cada dimensión
 - Nunca uses cálculo de volumen para paletizaciones, siempre usa dimensiones individuales
+- Las dimensiones exteriores del envase NO se usan para calcular cuántas bandejas caben, solo las interiores
 - Para turno de noche: prioriza referencias con mayor ratio venta_diaria/stock_medio
 - Si cruzas datos de varios archivos, explícalo brevemente
 - Si no encuentras la info, dilo claramente"""
@@ -2659,9 +2742,9 @@ INSTRUCCIONES:
                 st.session_state.logistica_historial = []
                 st.rerun()
 
-        # ── Calculadora de Paletización 3D ───
+        # ── Calculadora de Paletización ───
         st.divider()
-        st.subheader("📦 Calculadora de Paletización 3D")
+        st.subheader("📦 Calculadora de Paletización")
 
         col_pal1, col_pal2, col_pal3 = st.columns(3)
         with col_pal1:
@@ -2669,7 +2752,12 @@ INSTRUCCIONES:
         with col_pal2:
             ref_bandeja = st.text_input("Referencia bandeja (ej: C12170):", key="pal_ref").strip().upper()
         with col_pal3:
-            ref_envase = st.text_input("Nombre envase (ej: IFCO 6418):", key="pal_env").strip().upper()
+            envases_disponibles = []
+            if st.session_state.df_paletizacion is not None:
+                df_pal_tmp = normalizar_columnas(st.session_state.df_paletizacion.copy())
+                envases_disponibles = df_pal_tmp.iloc[:,0].astype(str).str.strip().tolist()
+            ref_envase = st.selectbox("Selecciona envase:", [""] + envases_disponibles, key="pal_env")
+            ref_envase = ref_envase.strip().upper() if ref_envase else ""
 
         if st.button("🔢 Calcular paletización"):
             import re as re_pal
@@ -2703,24 +2791,52 @@ INSTRUCCIONES:
                         b_l = int(nums[0]) * 10
                         b_a = int(nums[1]) * 10
                         b_h = int(nums[2])
+                        st.session_state['pal_b_l'] = b_l
+                        st.session_state['pal_b_a'] = b_a
+                        st.session_state['pal_b_h'] = b_h
+                        st.session_state['pal_ref_band'] = ref_bandeja
 
-            # Buscar medidas envase en ChromaDB
+            # Buscar medidas envase directamente en df_paletizacion
             e_l = e_a = e_h = None
             uds_caja = None
-            if ref_envase:
-                ctx_env = buscar_contexto_ai(ref_envase, n=10)
-                # Intentar extraer dimensiones interiores del contexto
-                # Buscar patron LxAxH en el contexto
-                matches = re_pal.findall(r'(\d{3,4})[xX×](\d{3,4})[xX×](\d{2,4})', ctx_env)
-                if matches:
-                    # Tomar el primer match que parezca dimensiones interiores
-                    e_l, e_a, e_h = int(matches[0][0]), int(matches[0][1]), int(matches[0][2])
-                # Buscar numero de cajas
-                cajas_match = re_pal.findall(r'numero.cajas[=:\s]*(\d+)', ctx_env, re_pal.IGNORECASE)
-                if cajas_match:
-                    uds_caja = int(cajas_match[0])
-                capas_match = re_pal.findall(r'numero.capas[=:\s]*(\d+)', ctx_env, re_pal.IGNORECASE)
-                n_capas_env = int(capas_match[0]) if capas_match else None
+            if ref_envase and st.session_state.df_paletizacion is not None:
+                df_pal_bus = st.session_state.df_paletizacion.copy()
+                df_pal_bus = normalizar_columnas(df_pal_bus)
+                # Buscar columna de dimensiones interiores
+                col_int = None
+                for col in df_pal_bus.columns:
+                    if 'inter' in col.lower():
+                        col_int = col
+                        break
+                col_ext = None
+                for col in df_pal_bus.columns:
+                    if 'exter' in col.lower() or (col != col_int and ('dim' in col.lower() or 'mm' in col.lower())):
+                        col_ext = col
+                        break
+                # Buscar por nombre de envase (búsqueda flexible)
+                df_pal_bus['Envase_upper'] = df_pal_bus.iloc[:,0].astype(str).str.upper().str.strip()
+                ref_env_upper = ref_envase.upper().strip()
+                # Buscar coincidencia exacta primero, luego parcial
+                fila_env = df_pal_bus[df_pal_bus['Envase_upper'] == ref_env_upper]
+                if fila_env.empty:
+                    fila_env = df_pal_bus[df_pal_bus['Envase_upper'].str.contains(ref_env_upper, na=False)]
+                if not fila_env.empty and col_int:
+                    dim_str = str(fila_env.iloc[0][col_int])
+                    nums = re_pal.findall(r'\d+', dim_str)
+                    if len(nums) >= 3:
+                        e_l, e_a, e_h = int(nums[0]), int(nums[1]), int(nums[2])
+                    # Numero de cajas
+                    for col in df_pal_bus.columns:
+                        if 'caja' in col.lower():
+                            try:
+                                uds_caja = int(fila_env.iloc[0][col])
+                            except:
+                                pass
+                            break
+                if e_l is None:
+                    # Fallback a ChromaDB
+                    ctx_env = buscar_contexto_ai(ref_envase, n=10)
+                    st.warning(f"No se encontró '{ref_envase}' en el archivo de paletización. Buscando en ChromaDB...")
 
             if b_l and b_a and b_h:
                 st.success(f"🏷️ Bandeja **{ref_bandeja}**: {b_l}×{b_a}×{b_h} mm")
@@ -2728,9 +2844,11 @@ INSTRUCCIONES:
                 # ── CÁLCULO CON ENVASE ────────────────────
                 if e_l and e_a and e_h:
                     st.success(f"📦 Envase **{ref_envase}** (interior): {e_l}×{e_a}×{e_h} mm")
+                    HOLGURA_GAS = 5  # mm extra por capa por efecto del gas
+                    b_h_real = b_h + HOLGURA_GAS
                     fi_l = e_l // b_l
                     fi_a = e_a // b_a
-                    fi_h = e_h // b_h
+                    fi_h = e_h // b_h_real
                     uds_calculadas = fi_l * fi_a * fi_h
                     st.subheader("📊 Resultado en caja")
                     cc1, cc2, cc3, cc4 = st.columns(4)
@@ -2775,121 +2893,14 @@ INSTRUCCIONES:
                     e_l = e_a = e_h = b_l
                     uds_calculadas = 1
 
-                # ── VISUALIZACIÓN SVG ─────────────────────
-                tab_3d, tab_top = st.tabs(["🎯 Vista Perspectiva", "🔭 Vista Aérea (Top)"])
-
-                with tab_3d:
-                    # Vista isométrica caballera del palet completo
-                    S = 0.25
-                    PL = palet_l * S
-                    PA = palet_a * S
-                    EL = (e_l if e_l else b_l) * S
-                    EA = (e_a if e_a else b_a) * S
-                    EH = (e_h if e_h else b_h) * S
-                    CL = cajas_l if e_l else bp_l
-                    CA = cajas_a if e_a else bp_a
-                    CH = cajas_h
-
-                    # Proyección isométrica simple
-                    def iso(x, y, z, ox=50, oy=300):
-                        ix = ox + (x - y) * 0.866
-                        iy = oy - z - (x + y) * 0.5
-                        return ix, iy
-
-                    colors_svg = ['#4FC3F7','#81C784','#FFB74D','#F06292','#AED581','#4DB6AC','#CE93D8','#FFCC02']
-
-                    svg_lines = [f'<svg width="700" height="500" xmlns="http://www.w3.org/2000/svg" style="background:#1a1a2e">']
-                    svg_lines.append('<text x="10" y="20" fill="white" font-size="12">Vista Perspectiva Caballera</text>')
-
-                    # Palet base
-                    def caja_iso(x0, y0, z0, w, d, h, fill, stroke='#333', opacity=0.9):
-                        lines = []
-                        # Cara frontal
-                        p = [iso(x0,y0,z0), iso(x0+w,y0,z0), iso(x0+w,y0,z0+h), iso(x0,y0,z0+h)]
-                        pts = ' '.join(f'{px},{py}' for px,py in p)
-                        r = int(int(fill[1:3],16)*0.7); g2 = int(int(fill[3:5],16)*0.7); b2 = int(int(fill[5:7],16)*0.7)
-                        dark = f'#{r:02x}{g2:02x}{b2:02x}'
-                        lines.append(f'<polygon points="{pts}" fill="{dark}" stroke="{stroke}" stroke-width="0.5" opacity="{opacity}"/>')
-                        # Cara lateral
-                        p = [iso(x0+w,y0,z0), iso(x0+w,y0+d,z0), iso(x0+w,y0+d,z0+h), iso(x0+w,y0,z0+h)]
-                        pts = ' '.join(f'{px},{py}' for px,py in p)
-                        lines.append(f'<polygon points="{pts}" fill="{fill}" stroke="{stroke}" stroke-width="0.5" opacity="{opacity}"/>')
-                        # Cara superior
-                        p = [iso(x0,y0,z0+h), iso(x0+w,y0,z0+h), iso(x0+w,y0+d,z0+h), iso(x0,y0+d,z0+h)]
-                        pts = ' '.join(f'{px},{py}' for px,py in p)
-                        r2 = min(255,int(int(fill[1:3],16)*1.2)); g3 = min(255,int(int(fill[3:5],16)*1.2)); b3 = min(255,int(int(fill[5:7],16)*1.2))
-                        light = f'#{r2:02x}{g3:02x}{b3:02x}'
-                        lines.append(f'<polygon points="{pts}" fill="{light}" stroke="{stroke}" stroke-width="0.5" opacity="{opacity}"/>')
-                        return lines
-
-                    # Base palet
-                    for line in caja_iso(0, 0, 0, PL, PA, 8, '#8B6914', opacity=1):
-                        svg_lines.append(line)
-
-                    # Cajas (limitar a max 6 capas para no saturar el SVG)
-                    max_capas_svg = min(CH, 6)
-                    for capa in range(max_capas_svg):
-                        color = colors_svg[capa % len(colors_svg)]
-                        for fi in range(CL):
-                            for fa in range(CA):
-                                x0 = fi * EL
-                                y0 = fa * EA
-                                z0 = 8 + capa * EH
-                                for line in caja_iso(x0, y0, z0, EL-1, EA-1, EH-1, color):
-                                    svg_lines.append(line)
-
-                    if CH > 6:
-                        svg_lines.append(f'<text x="10" y="480" fill="yellow" font-size="11">* Mostrando 6 de {CH} capas para claridad</text>')
-
-                    # Leyenda
-                    svg_lines.append(f'<text x="500" y="50" fill="white" font-size="11">Palet: {palet_l}×{palet_a}mm</text>')
-                    svg_lines.append(f'<text x="500" y="65" fill="white" font-size="11">Bandeja: {b_l}×{b_a}×{b_h}mm</text>')
-                    if e_l:
-                        svg_lines.append(f'<text x="500" y="80" fill="white" font-size="11">Caja: {e_l}×{e_a}×{e_h}mm</text>')
-                    svg_lines.append('</svg>')
-                    st.markdown(''.join(svg_lines), unsafe_allow_html=True)
-
-                with tab_top:
-                    # Vista aérea de una capa
-                    S2 = 1.2
-                    EL2 = (e_l if e_l else b_l) * S2 / 10
-                    EA2 = (e_a if e_a else b_a) * S2 / 10
-                    BL2 = b_l * S2 / 10
-                    BA2 = b_a * S2 / 10
-                    PL2 = palet_l * S2 / 10
-                    PA2 = palet_a * S2 / 10
-                    OX, OY = 30, 30
-
-                    svg2 = [f'<svg width="{int(PL2+OX*2+100)}" height="{int(PA2+OY*2+60)}" xmlns="http://www.w3.org/2000/svg" style="background:#1a1a2e">']
-                    svg2.append('<text x="10" y="20" fill="white" font-size="12">Vista Aérea — 1 capa del palet</text>')
-
-                    # Palet
-                    svg2.append(f'<rect x="{OX}" y="{OY}" width="{PL2}" height="{PA2}" fill="#8B6914" stroke="#aaa" stroke-width="1"/>')
-
-                    colors2 = ['#4FC3F7','#81C784','#FFB74D','#F06292','#AED581','#4DB6AC']
-                    for fi in range(CL):
-                        for fa in range(CA):
-                            cx2 = OX + fi * EL2
-                            cy2 = OY + fa * EA2
-                            color_c = colors2[(fi + fa) % len(colors2)]
-                            # Caja
-                            svg2.append(f'<rect x="{cx2:.1f}" y="{cy2:.1f}" width="{EL2:.1f}" height="{EA2:.1f}" fill="{color_c}" stroke="#222" stroke-width="1" opacity="0.7"/>')
-                            # Bandejas dentro de la caja (solo capa 1)
-                            for bi in range(fi_l if e_l else 1):
-                                for ba2 in range(fi_a if e_a else 1):
-                                    bx = cx2 + bi * BL2
-                                    by = cy2 + ba2 * BA2
-                                    svg2.append(f'<rect x="{bx:.1f}" y="{by:.1f}" width="{BL2:.1f}" height="{BA2:.1f}" fill="white" stroke="#555" stroke-width="0.5" opacity="0.4"/>')
-
-                    # Cotas
-                    svg2.append(f'<text x="{OX}" y="{OY+PA2+20}" fill="#aaa" font-size="10">{palet_l}mm</text>')
-                    svg2.append(f'<text x="{OX+PL2+5}" y="{OY+PA2//2}" fill="#aaa" font-size="10">{palet_a}mm</text>')
-                    svg2.append(f'<text x="10" y="{int(PA2+OY*2+50)}" fill="white" font-size="10">■ Caja   □ Bandeja</text>')
-                    svg2.append('</svg>')
-                    st.markdown(''.join(svg2), unsafe_allow_html=True)
-
             # SUGERENCIA IA DE ENVASE OPTIMO
             st.divider()
+            # Recuperar medidas de session_state si el botón anterior no está activo
+            if not (b_l and b_a and b_h):
+                b_l = st.session_state.get('pal_b_l')
+                b_a = st.session_state.get('pal_b_a')
+                b_h = st.session_state.get('pal_b_h')
+                ref_bandeja = st.session_state.get('pal_ref_band', ref_bandeja)
             if st.button("💡 Sugerir envase óptimo para esta bandeja") and b_l and b_a and b_h:
                 if st.session_state.df_paletizacion is None:
                     st.warning("Sube el archivo de paletizaciones en este módulo primero.")
@@ -2912,9 +2923,10 @@ INSTRUCCIONES:
                         if len(nums) < 3:
                             continue
                         el, ea, eh = int(nums[0]), int(nums[1]), int(nums[2])
+                        HOLGURA_GAS = 5  # mm extra por capa por efecto del gas
                         fi_l = el // b_l
                         fi_a = ea // b_a
-                        fi_h = eh // b_h
+                        fi_h = eh // (b_h + HOLGURA_GAS)
                         uds  = fi_l * fi_a * fi_h
                         if uds > 0:
                             resultados_envases.append({
