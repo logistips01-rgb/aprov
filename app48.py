@@ -2916,15 +2916,20 @@ INSTRUCCIONES:
                     e_l = e_a = e_h = b_l
                     uds_calculadas = 1
 
-            # SUGERENCIA IA DE ENVASE OPTIMO
-            st.divider()
-            # Recuperar medidas de session_state si el botón anterior no está activo
-            if not (b_l and b_a and b_h):
-                b_l = st.session_state.get('pal_b_l')
-                b_a = st.session_state.get('pal_b_a')
-                b_h = st.session_state.get('pal_b_h')
-                ref_bandeja = st.session_state.get('pal_ref_band', ref_bandeja)
-            if st.button("💡 Sugerir envase óptimo para esta bandeja") and b_l and b_a and b_h:
+            # SUGERENCIA IA DE ENVASE OPTIMO - placeholder dentro del calcular
+            pass
+
+        # Sugerencia fuera del bloque calcular
+        st.divider()
+        _b_l = st.session_state.get('pal_b_l')
+        _b_a = st.session_state.get('pal_b_a')
+        _b_h = st.session_state.get('pal_b_h')
+        _ref_band = st.session_state.get('pal_ref_band', '')
+        if _b_l:
+            st.caption(f"Bandeja en memoria: {_ref_band} ({_b_l}x{_b_a}x{_b_h}mm)")
+        if st.button("💡 Sugerir envase óptimo para esta bandeja") and _b_l and _b_a and _b_h:
+            b_l, b_a, b_h, ref_bandeja = _b_l, _b_a, _b_h, _ref_band
+            if True:
                 if st.session_state.df_paletizacion is None:
                     st.warning("Sube el archivo de paletizaciones en este módulo primero.")
                 else:
@@ -2979,7 +2984,11 @@ INSTRUCCIONES:
                         prompt_sug = f"Analiza estos envases para la bandeja {ref_bandeja} ({dim_band}) y da una recomendacion al comercial:\n\n{tabla_str}\n\nEl envase con mas unidades por caja es {mejor['Envase']} con {mejor['Uds/caja']} unidades. Explica brevemente las ventajas e inconvenientes de los 3 mejores y cual recomendarias y por que, en lenguaje sencillo para un comercial."
                         try:
                             from groq import Groq as GroqSug
-                            groq_sug = GroqSug(api_key=GROQ_API_KEY)
+                            import os as _os
+                            from dotenv import load_dotenv as _ldenv
+                            _ldenv()
+                            _gkey = _os.getenv('GROQ_API_KEY', '') or GROQ_API_KEY
+                            groq_sug = GroqSug(api_key=_gkey)
                             resp_sug = groq_sug.chat.completions.create(
                                 model="llama-3.3-70b-versatile",
                                 messages=[
@@ -2995,7 +3004,5 @@ INSTRUCCIONES:
                     else:
                         st.warning("No se encontraron envases compatibles con esta bandeja.")
 
-            elif ref_bandeja:
-                st.warning(f"No se encontró la referencia {ref_bandeja} en el maestro de bandejas.")
-            else:
+            elif not _b_l:
                 st.info("Introduce una referencia de bandeja o producto para calcular.")
