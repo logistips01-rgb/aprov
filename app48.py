@@ -2844,12 +2844,35 @@ INSTRUCCIONES:
                 # ── CÁLCULO CON ENVASE ────────────────────
                 if e_l and e_a and e_h:
                     st.success(f"📦 Envase **{ref_envase}** (interior): {e_l}×{e_a}×{e_h} mm")
-                    HOLGURA_GAS = 5  # mm extra por capa por efecto del gas
+                    HOLGURA_GAS = 5   # mm extra por capa por efecto del gas
+                    MARGEN_CAJA = 4   # mm libres en la parte superior de la caja
                     b_h_real = b_h + HOLGURA_GAS
-                    fi_l = e_l // b_l
-                    fi_a = e_a // b_a
-                    fi_h = e_h // b_h_real
-                    uds_calculadas = fi_l * fi_a * fi_h
+                    altura_util = e_h - MARGEN_CAJA
+
+                    # Orientación normal: largo bandeja vs largo caja
+                    fi_l_n = e_l // b_l
+                    fi_a_n = e_a // b_a
+                    fi_h_n = altura_util // b_h_real
+                    uds_normal = fi_l_n * fi_a_n * fi_h_n
+
+                    # Orientación girada: ancho bandeja vs largo caja
+                    fi_l_g = e_l // b_a
+                    fi_a_g = e_a // b_l
+                    fi_h_g = altura_util // b_h_real
+                    uds_girada = fi_l_g * fi_a_g * fi_h_g
+
+                    # Elegir la mejor
+                    if uds_girada > uds_normal:
+                        fi_l, fi_a, fi_h = fi_l_g, fi_a_g, fi_h_g
+                        uds_calculadas = uds_girada
+                        orientacion = "↺ Girada (ancho×largo)"
+                    else:
+                        fi_l, fi_a, fi_h = fi_l_n, fi_a_n, fi_h_n
+                        uds_calculadas = uds_normal
+                        orientacion = "→ Normal (largo×ancho)"
+
+                    # Mostrar ambas opciones
+                    st.info(f"🔄 Orientación seleccionada: **{orientacion}** ({uds_calculadas} uds) | Alternativa: {uds_girada if orientacion.startswith('→') else uds_normal} uds")
                     st.subheader("📊 Resultado en caja")
                     cc1, cc2, cc3, cc4 = st.columns(4)
                     cc1.metric("Por fila (largo)", fi_l)
@@ -2923,11 +2946,19 @@ INSTRUCCIONES:
                         if len(nums) < 3:
                             continue
                         el, ea, eh = int(nums[0]), int(nums[1]), int(nums[2])
-                        HOLGURA_GAS = 5  # mm extra por capa por efecto del gas
-                        fi_l = el // b_l
-                        fi_a = ea // b_a
-                        fi_h = eh // (b_h + HOLGURA_GAS)
-                        uds  = fi_l * fi_a * fi_h
+                        HOLGURA_GAS = 5   # mm extra por capa por efecto del gas
+                        MARGEN_CAJA = 4   # mm libres en la parte superior de la caja
+                        h_util = eh - MARGEN_CAJA
+                        bh_r   = b_h + HOLGURA_GAS
+                        # Probar ambas orientaciones
+                        uds_n = (el // b_l) * (ea // b_a) * (h_util // bh_r)
+                        uds_g = (el // b_a) * (ea // b_l) * (h_util // bh_r)
+                        if uds_g > uds_n:
+                            fi_l, fi_a, fi_h = el // b_a, ea // b_l, h_util // bh_r
+                            uds = uds_g
+                        else:
+                            fi_l, fi_a, fi_h = el // b_l, ea // b_a, h_util // bh_r
+                            uds = uds_n
                         if uds > 0:
                             resultados_envases.append({
                                 'Envase': envase_nombre,
