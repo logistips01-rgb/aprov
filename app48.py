@@ -2861,8 +2861,29 @@ INSTRUCCIONES:
                     fi_h_g = altura_util // b_h_real
                     uds_girada = fi_l_g * fi_a_g * fi_h_g
 
-                    # Elegir la mejor
-                    if uds_girada > uds_normal:
+                    # Orientación mixta: zona A normal + zona B girada (dividir largo caja)
+                    # Zona A: tantas columnas normales como quepan
+                    # Zona B: el espacio restante en girado
+                    zona_a_cols = e_l // b_l
+                    resto_l = e_l - (zona_a_cols * b_l)
+                    zona_b_cols = resto_l // b_a
+                    filas_mixtas = e_a // b_a  # filas comunes
+                    uds_mixta_1 = (zona_a_cols * filas_mixtas + zona_b_cols * (e_a // b_l)) * fi_h_n
+
+                    zona_a_cols2 = e_l // b_a
+                    resto_l2 = e_l - (zona_a_cols2 * b_a)
+                    zona_b_cols2 = resto_l2 // b_l
+                    uds_mixta_2 = (zona_a_cols2 * (e_a // b_l) + zona_b_cols2 * (e_a // b_a)) * fi_h_n
+
+                    uds_mixta = max(uds_mixta_1, uds_mixta_2)
+
+                    # Elegir la mejor de las 3
+                    mejor = max(uds_normal, uds_girada, uds_mixta)
+                    if mejor == uds_mixta and uds_mixta > uds_normal and uds_mixta > uds_girada:
+                        uds_calculadas = uds_mixta
+                        orientacion = "🔀 Mixta"
+                        fi_l, fi_a, fi_h = zona_a_cols, filas_mixtas, fi_h_n
+                    elif uds_girada >= uds_normal:
                         fi_l, fi_a, fi_h = fi_l_g, fi_a_g, fi_h_g
                         uds_calculadas = uds_girada
                         orientacion = "↺ Girada (ancho×largo)"
@@ -2871,8 +2892,7 @@ INSTRUCCIONES:
                         uds_calculadas = uds_normal
                         orientacion = "→ Normal (largo×ancho)"
 
-                    # Mostrar ambas opciones
-                    st.info(f"🔄 Orientación seleccionada: **{orientacion}** ({uds_calculadas} uds) | Alternativa: {uds_girada if orientacion.startswith('→') else uds_normal} uds")
+                    st.info(f"🔄 **{orientacion}** — {uds_calculadas} uds/caja | Normal: {uds_normal} | Girada: {uds_girada} | Mixta: {uds_mixta}")
                     st.subheader("📊 Resultado en caja")
                     cc1, cc2, cc3, cc4 = st.columns(4)
                     cc1.metric("Por fila (largo)", fi_l)
@@ -2990,7 +3010,7 @@ INSTRUCCIONES:
                             _gkey = _os.getenv('GROQ_API_KEY', '') or GROQ_API_KEY
                             groq_sug = GroqSug(api_key=_gkey)
                             resp_sug = groq_sug.chat.completions.create(
-                                model="llama-3.3-70b-versatile",
+                                model="llama-3.1-8b-instant",
                                 messages=[
                                     {"role": "system", "content": "Eres un experto en logistica y packaging de Aldelis. Responde en espanol, de forma clara y practica para un comercial."},
                                     {"role": "user", "content": prompt_sug}
