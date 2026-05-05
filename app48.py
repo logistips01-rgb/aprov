@@ -256,6 +256,21 @@ section.main .stButton > button {
 
 /* Header de la app */
 header[data-testid="stHeader"] { background: white !important; border-bottom: 1px solid #e5e5e5; }
+
+/* Fondo gris del área principal */
+.main .block-container { background: #F2F2F0 !important; }
+section[data-testid="stMain"] { background: #F2F2F0 !important; }
+.stApp { background: #F2F2F0 !important; }
+
+/* Métricas blancas */
+[data-testid="stMetric"] {
+  background: white !important;
+  border-radius: 8px !important;
+  border: 0.5px solid #e5e5e5 !important;
+  padding: 12px 16px !important;
+}
+[data-testid="stMetricValue"] { font-size: 22px !important; font-weight: 500 !important; }
+[data-testid="stMetricLabel"] { font-size: 11px !important; color: #888 !important; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -1043,8 +1058,30 @@ elif menu == "📊 Dashboard":
                 else:
                     cells += f'<td style="padding:8px 12px;">{val}</td>'
             rows_html += f'<tr style="border-bottom:0.5px solid #f0f0f0;{row_bg}">{cells}</tr>'
-        headers = "".join([f'<th style="padding:7px 12px;text-align:left;font-size:10px;font-weight:500;color:#888;text-transform:uppercase;letter-spacing:0.04em;background:#fafafa;border-bottom:1px solid #e5e5e5;">{c}</th>' for c in cols])
-        html = f'<div style="background:white;border-radius:12px;border:0.5px solid #e5e5e5;overflow:hidden;margin-top:8px;"><div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:12px;"><thead><tr>{headers}</tr></thead><tbody>{rows_html}</tbody></table></div></div>'
+        # Calcular ancho mínimo por columna basado en contenido
+        col_widths = {}
+        for col in cols:
+            max_len = max(
+                len(str(col)),
+                df_vista[col].astype(str).str.len().max() if col in df_vista.columns else 0
+            )
+            if col == 'Descripcion':
+                col_widths[col] = 'min-width:180px;max-width:220px;'
+            elif col == 'Referencia':
+                col_widths[col] = 'min-width:100px;'
+            elif col == 'Estado':
+                col_widths[col] = 'min-width:140px;'
+            elif col in ['Pedido_pal', 'Seg_pal', 'CDM_pal', 'Dias_stock', 'Var_semana']:
+                col_widths[col] = 'min-width:60px;text-align:center;'
+            else:
+                w = max(60, min(120, max_len * 8))
+                col_widths[col] = f'min-width:{w}px;'
+
+        headers = "".join([
+            f'<th style="padding:7px 12px;text-align:left;font-size:10px;font-weight:500;color:#888;text-transform:uppercase;letter-spacing:0.04em;background:#fafafa;border-bottom:1px solid #e5e5e5;{col_widths.get(c,"")}">{c}</th>'
+            for c in cols
+        ])
+        html = f'<div style="background:white;border-radius:12px;border:0.5px solid #e5e5e5;overflow:hidden;margin-top:8px;"><div style="overflow-x:auto;max-height:520px;overflow-y:auto;"><table style="width:100%;border-collapse:collapse;font-size:12px;table-layout:auto;"><thead style="position:sticky;top:0;z-index:1;"><tr>{headers}</tr></thead><tbody>{rows_html}</tbody></table></div></div>'
         st.markdown(html, unsafe_allow_html=True)
 
     render_dashboard_table(vista, cols_mostrar)
