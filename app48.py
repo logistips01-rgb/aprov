@@ -170,6 +170,95 @@ def firebase_borrar_df(coleccion, doc_id):
 
 st.set_page_config(page_title="Aprovisionamiento Aldelis", layout="wide")
 
+# ── CSS CORPORATIVO ALDELIS ───────────────────
+st.markdown("""
+<style>
+:root {
+  --ald-red: #C8102E;
+  --ald-red-light: #FCEBEB;
+  --ald-red-dark: #8B0B1F;
+}
+
+/* Sidebar */
+[data-testid="stSidebar"] {
+  background: white !important;
+  border-right: 1px solid #e5e5e5 !important;
+}
+[data-testid="stSidebar"] > div:first-child { padding-top: 1rem; }
+
+/* Quitar el radio button nativo */
+[data-testid="stSidebar"] .stRadio > label { display: none; }
+[data-testid="stSidebar"] .stRadio > div { gap: 2px !important; }
+[data-testid="stSidebar"] .stRadio div[role="radiogroup"] { gap: 2px !important; }
+[data-testid="stSidebar"] .stRadio label[data-baseweb="radio"] {
+  background: transparent !important;
+  border-radius: 8px !important;
+  padding: 7px 10px !important;
+  width: 100% !important;
+  border: none !important;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+[data-testid="stSidebar"] .stRadio label[data-baseweb="radio"]:hover {
+  background: #f5f5f5 !important;
+}
+[data-testid="stSidebar"] .stRadio label[aria-checked="true"][data-baseweb="radio"] {
+  background: var(--ald-red-light) !important;
+  color: var(--ald-red-dark) !important;
+  font-weight: 500 !important;
+}
+[data-testid="stSidebar"] .stRadio label[aria-checked="true"] p {
+  color: var(--ald-red-dark) !important;
+  font-weight: 500 !important;
+}
+[data-testid="stSidebar"] .stRadio div[data-testid="stMarkdownContainer"] p {
+  font-size: 13px !important;
+}
+/* Ocultar círculo del radio */
+[data-testid="stSidebar"] .stRadio input[type="radio"] { display: none !important; }
+[data-testid="stSidebar"] .stRadio span[data-testid] { display: none !important; }
+
+/* Métricas */
+[data-testid="stMetric"] {
+  background: white;
+  border-radius: 8px;
+  border: 0.5px solid #e5e5e5;
+  padding: 10px 14px !important;
+}
+[data-testid="stMetricValue"] { font-size: 22px !important; font-weight: 500 !important; }
+[data-testid="stMetricLabel"] { font-size: 11px !important; }
+
+/* Botones navegación sidebar */
+[data-testid="stSidebar"] .stButton > button {
+  border-radius: 8px !important;
+  font-size: 13px !important;
+  font-weight: 400 !important;
+  border: none !important;
+  background: transparent !important;
+  color: var(--color-text-secondary) !important;
+  text-align: left !important;
+  padding: 7px 10px !important;
+  transition: background 0.15s !important;
+}
+[data-testid="stSidebar"] .stButton > button:hover {
+  background: #f5f5f5 !important;
+  color: #111 !important;
+}
+
+/* Botones principales fuera del sidebar */
+section.main .stButton > button {
+  border-radius: 8px !important;
+  font-size: 13px !important;
+  font-weight: 500 !important;
+  border: 1px solid #e5e5e5 !important;
+  transition: all 0.15s !important;
+}
+
+/* Header de la app */
+header[data-testid="stHeader"] { background: white !important; border-bottom: 1px solid #e5e5e5; }
+</style>
+""", unsafe_allow_html=True)
+
 # ─────────────────────────────────────────────
 # CONTROL DE ACCESO
 # ─────────────────────────────────────────────
@@ -574,9 +663,50 @@ def columnas_faltantes(df, requeridas, nombre_archivo):
 # ─────────────────────────────────────────────
 # NAVEGACIÓN
 # ─────────────────────────────────────────────
-st.sidebar.title("🎮 Panel de Control")
-st.sidebar.caption("📦 v2.0 | app.py")
-menu = st.sidebar.radio("Selecciona:", ["📂 Cargar Archivos", "📊 Dashboard", "📈 Análisis", "🤖 Agente IA", "🔗 Materiales", "🏷️ Etiquetas", "🚢 Tránsito", "📋 Pedidos", "🔍 Previsión y Obsoletos", "🏪 Producto Terminado", "🏭 Planificación Producción", "🧠 Logística AI"])
+# Logo sidebar
+st.sidebar.markdown("""
+<div style="display:flex;align-items:center;gap:10px;padding:0 4px 16px;border-bottom:1px solid #e5e5e5;margin-bottom:12px;">
+  <div style="width:32px;height:32px;border-radius:8px;background:#C8102E;display:flex;align-items:center;justify-content:center;color:white;font-weight:600;font-size:14px;flex-shrink:0;">A</div>
+  <div>
+    <div style="font-size:14px;font-weight:600;color:#111;line-height:1.2;">Aldelis</div>
+    <div style="font-size:10px;color:#888;">Aprovisionamiento</div>
+  </div>
+</div>
+""", unsafe_allow_html=True)
+
+TODOS_MODULOS = [
+    "📂 Cargar Archivos",
+    "📊 Dashboard",
+    "📈 Análisis",
+    "🧠 Logística AI",
+    "🔗 Materiales",
+    "🏷️ Etiquetas",
+    "🚢 Tránsito",
+    "📋 Pedidos",
+    "🏪 Producto Terminado",
+    "🏭 Planificación Producción",
+    "🔍 Previsión y Obsoletos",
+    "🤖 Agente IA",
+]
+
+GRUPOS = {
+    "Principal": ["📂 Cargar Archivos", "📊 Dashboard", "📈 Análisis", "🧠 Logística AI"],
+    "Gestión": ["🔗 Materiales", "🏷️ Etiquetas", "🚢 Tránsito", "📋 Pedidos"],
+    "Producción": ["🏪 Producto Terminado", "🏭 Planificación Producción", "🔍 Previsión y Obsoletos", "🤖 Agente IA"],
+}
+
+for grupo, items in GRUPOS.items():
+    st.sidebar.markdown(f'<div style="font-size:10px;color:#aaa;text-transform:uppercase;letter-spacing:0.05em;padding:0 4px;margin:8px 0 4px;">{ grupo}</div>', unsafe_allow_html=True)
+    for item in items:
+        if st.sidebar.button(item, key=f"nav_{item}", use_container_width=True):
+            st.session_state["menu_activo"] = item
+            st.rerun()
+
+if "menu_activo" not in st.session_state:
+    st.session_state["menu_activo"] = "📊 Dashboard"
+
+menu = st.session_state["menu_activo"]
+st.sidebar.markdown('<div style="margin-top:16px;font-size:10px;color:#bbb;text-align:center;">v2.0 — Aprovisionamiento Aldelis</div>', unsafe_allow_html=True)
 
 # ══════════════════════════════════════════════
 # MÓDULO 1: CARGAR ARCHIVOS
@@ -881,15 +1011,43 @@ elif menu == "📊 Dashboard":
     ]
     cols_mostrar = [c for c in cols_mostrar if c in vista.columns]
 
-    def colorear(row):
-        color = vista.loc[row.name, 'Color']
-        return [f'background-color: {color}; color: white'] * len(row)
+    def render_dashboard_table(df_vista, cols):
+        badge_map = {
+            "#721c24": ('background:#FCEBEB;color:#791F1F;', '#C8102E'),
+            "#856404": ('background:#FAEEDA;color:#633806;', '#BA7517'),
+            "#155724": ('background:#EAF3DE;color:#27500A;', '#639922'),
+        }
+        rows_html = ""
+        for _, row in df_vista.iterrows():
+            color = row.get('Color', '#155724')
+            estado_text = str(row.get('Estado', '')).replace('COMPRAR: ', 'Comprar ').replace('EN TRANSITO: ', 'Transito ').replace('INCREMENTO: ', 'Incr. ')
+            for e in ['🔴 ', '🟡 ', '🟢 ', '(🚢 ', ')']:
+                estado_text = estado_text.replace(e, '')
+            badge_style, dot_color = badge_map.get(color, badge_map["#155724"])
+            dot = f'<span style="width:6px;height:6px;border-radius:50%;background:{dot_color};display:inline-block;margin-right:4px;"></span>'
+            estado_badge = f'<span style="display:inline-flex;align-items:center;{badge_style}padding:3px 8px;border-radius:20px;font-size:11px;font-weight:500;">{dot}{estado_text}</span>'
+            row_bg = "background:#fff9f9;" if color == "#721c24" else ""
+            cells = ""
+            for col in cols:
+                val = row.get(col, "")
+                if col == 'Estado':
+                    cells += f'<td style="padding:8px 12px;">{estado_badge}</td>'
+                elif col == 'Pedido_pal':
+                    v = int(val) if val else 0
+                    style = "font-weight:500;color:#C8102E;" if v > 0 else "color:#aaa;"
+                    cells += f'<td style="padding:8px 12px;{style}">{v if v > 0 else "—"}</td>'
+                elif col == 'Descripcion':
+                    cells += f'<td style="padding:8px 12px;color:#666;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="{val}">{str(val)[:30]}</td>'
+                elif col == 'Referencia':
+                    cells += f'<td style="padding:8px 12px;font-weight:500;">{val}</td>'
+                else:
+                    cells += f'<td style="padding:8px 12px;">{val}</td>'
+            rows_html += f'<tr style="border-bottom:0.5px solid #f0f0f0;{row_bg}">{cells}</tr>'
+        headers = "".join([f'<th style="padding:7px 12px;text-align:left;font-size:10px;font-weight:500;color:#888;text-transform:uppercase;letter-spacing:0.04em;background:#fafafa;border-bottom:1px solid #e5e5e5;">{c}</th>' for c in cols])
+        html = f'<div style="background:white;border-radius:12px;border:0.5px solid #e5e5e5;overflow:hidden;margin-top:8px;"><div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:12px;"><thead><tr>{headers}</tr></thead><tbody>{rows_html}</tbody></table></div></div>'
+        st.markdown(html, unsafe_allow_html=True)
 
-    st.dataframe(
-        vista[cols_mostrar].style.apply(colorear, axis=1),
-        use_container_width=True,
-        height=500
-    )
+    render_dashboard_table(vista, cols_mostrar)
 
     # --- Detalle de productos asociados ---
     if st.session_state.df_materiales is not None:
@@ -2846,34 +3004,35 @@ INSTRUCCIONES:
                     st.success(f"📦 Envase **{ref_envase}** (interior): {e_l}×{e_a}×{e_h} mm")
                     HOLGURA_GAS = 5   # mm extra por capa por efecto del gas
                     MARGEN_CAJA = 4   # mm libres en la parte superior de la caja
+                    MARGEN_LATERAL = 5  # mm de margen lateral de la caja por solape
                     b_h_real = b_h + HOLGURA_GAS
                     altura_util = e_h - MARGEN_CAJA
+                    e_l_ef = e_l + MARGEN_LATERAL  # largo efectivo con margen
+                    e_a_ef = e_a + MARGEN_LATERAL  # ancho efectivo con margen
 
                     # Orientación normal: largo bandeja vs largo caja
-                    fi_l_n = e_l // b_l
-                    fi_a_n = e_a // b_a
+                    fi_l_n = e_l_ef // b_l
+                    fi_a_n = e_a_ef // b_a
                     fi_h_n = altura_util // b_h_real
                     uds_normal = fi_l_n * fi_a_n * fi_h_n
 
                     # Orientación girada: ancho bandeja vs largo caja
-                    fi_l_g = e_l // b_a
-                    fi_a_g = e_a // b_l
+                    fi_l_g = e_l_ef // b_a
+                    fi_a_g = e_a_ef // b_l
                     fi_h_g = altura_util // b_h_real
                     uds_girada = fi_l_g * fi_a_g * fi_h_g
 
                     # Orientación mixta: zona A normal + zona B girada (dividir largo caja)
-                    # Zona A: tantas columnas normales como quepan
-                    # Zona B: el espacio restante en girado
-                    zona_a_cols = e_l // b_l
-                    resto_l = e_l - (zona_a_cols * b_l)
+                    zona_a_cols = e_l_ef // b_l
+                    resto_l = e_l_ef - (zona_a_cols * b_l)
                     zona_b_cols = resto_l // b_a
-                    filas_mixtas = e_a // b_a  # filas comunes
-                    uds_mixta_1 = (zona_a_cols * filas_mixtas + zona_b_cols * (e_a // b_l)) * fi_h_n
+                    filas_mixtas = e_a_ef // b_a
+                    uds_mixta_1 = (zona_a_cols * filas_mixtas + zona_b_cols * (e_a_ef // b_l)) * fi_h_n
 
-                    zona_a_cols2 = e_l // b_a
-                    resto_l2 = e_l - (zona_a_cols2 * b_a)
+                    zona_a_cols2 = e_l_ef // b_a
+                    resto_l2 = e_l_ef - (zona_a_cols2 * b_a)
                     zona_b_cols2 = resto_l2 // b_l
-                    uds_mixta_2 = (zona_a_cols2 * (e_a // b_l) + zona_b_cols2 * (e_a // b_a)) * fi_h_n
+                    uds_mixta_2 = (zona_a_cols2 * (e_a_ef // b_l) + zona_b_cols2 * (e_a_ef // b_a)) * fi_h_n
 
                     uds_mixta = max(uds_mixta_1, uds_mixta_2)
 
