@@ -692,6 +692,21 @@ GRUPOS = {
     "Producción": ["🏪 Producto Terminado", "🏭 Planificación Producción", "🔍 Previsión y Obsoletos", "🤖 Agente IA"],
 }
 
+LABELS_MENU = {
+    "📂 Cargar Archivos": "Cargar Archivos",
+    "📊 Dashboard": "Dashboard",
+    "📈 Análisis": "Analisis",
+    "🧠 Logística AI": "Logistica AI",
+    "🔗 Materiales": "Materiales",
+    "🏷️ Etiquetas": "Etiquetas",
+    "🚢 Tránsito": "Transito",
+    "📋 Pedidos": "Pedidos",
+    "🏪 Producto Terminado": "Prod. Terminado",
+    "🏭 Planificación Producción": "Planificacion",
+    "🔍 Previsión y Obsoletos": "Prevision",
+    "🤖 Agente IA": "Agente IA",
+}
+
 for grupo, items in GRUPOS.items():
     st.sidebar.markdown(f'<div style="font-size:9px;color:#5D6D7E;text-transform:uppercase;letter-spacing:0.1em;padding:0 6px;margin:10px 0 4px;font-weight:700;">{grupo}</div>', unsafe_allow_html=True)
     for item in items:
