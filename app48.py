@@ -202,8 +202,13 @@ st.markdown("""
   background: transparent !important;
   color: #BDC3C7 !important;
   text-align: left !important;
-  padding: 7px 10px !important;
+  justify-content: flex-start !important;
+  padding: 7px 10px 7px 6px !important;
   transition: all 0.15s !important;
+  width: 100% !important;
+}
+[data-testid="stSidebar"] .stButton > button p {
+  text-align: left !important;
   width: 100% !important;
 }
 [data-testid="stSidebar"] .stButton > button:hover {
