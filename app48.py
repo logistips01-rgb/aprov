@@ -175,92 +175,64 @@ st.markdown("""
 <style>
 :root {
   --ald-red: #C8102E;
-  --ald-red-light: rgba(200,16,46,0.15);
-  --ald-sidebar: #343434;
-  --ald-main: #2d2d2d;
-  --ald-card: #3a3a3a;
-  --ald-border: rgba(255,255,255,0.1);
-  --ald-text: #f0f0f0;
-  --ald-muted: #999;
+  --ald-red-light: #FCEBEB;
+  --ald-red-dark: #8B0B1F;
 }
 
-/* App background */
-.stApp, section[data-testid="stMain"], .main .block-container {
-  background: #2d2d2d !important;
-  color: var(--ald-text) !important;
-}
-
-/* Sidebar dark */
+/* Sidebar */
 [data-testid="stSidebar"] {
-  background: #343434 !important;
-  border-right: 1px solid rgba(255,255,255,0.08) !important;
+  background: white !important;
+  border-right: 1px solid #e8e8e8 !important;
 }
-[data-testid="stSidebar"] * { color: #ccc !important; }
+[data-testid="stSidebar"] * { color: #333 !important; }
 
 /* Sidebar nav buttons */
 [data-testid="stSidebar"] .stButton > button {
   border-radius: 6px !important;
   font-size: 13px !important;
   font-weight: 400 !important;
-  border: 1px solid rgba(255,255,255,0.1) !important;
-  background: rgba(255,255,255,0.04) !important;
-  color: #ccc !important;
+  border: 1px solid #eee !important;
+  background: #fafafa !important;
+  color: #444 !important;
   text-align: left !important;
   padding: 8px 12px !important;
   transition: all 0.15s !important;
   width: 100% !important;
 }
 [data-testid="stSidebar"] .stButton > button:hover {
-  background: rgba(200,16,46,0.15) !important;
-  color: white !important;
-  border-color: rgba(200,16,46,0.4) !important;
+  background: #FCEBEB !important;
+  color: #8B0B1F !important;
+  border-color: #C8102E !important;
 }
 
-/* Metricas */
+/* Métricas */
 [data-testid="stMetric"] {
-  background: #3a3a3a !important;
+  background: white !important;
   border-radius: 8px !important;
-  border: 1px solid rgba(255,255,255,0.12) !important;
-  padding: 10px 14px !important;
+  border: 1px solid #e8e8e8 !important;
+  padding: 12px 16px !important;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.06) !important;
 }
-[data-testid="stMetricValue"] { font-size: 22px !important; font-weight: 500 !important; color: white !important; }
+[data-testid="stMetricValue"] { font-size: 22px !important; font-weight: 500 !important; color: #111 !important; }
 [data-testid="stMetricLabel"] { font-size: 11px !important; color: #888 !important; }
 
-/* Titles and text */
-h1, h2, h3, .stMarkdown p, label { color: var(--ald-text) !important; }
-
-/* Selectbox, inputs */
-[data-testid="stSelectbox"] > div, .stTextInput > div > div {
-  background: #1e1e1e !important;
-  border-color: rgba(255,255,255,0.1) !important;
-  color: white !important;
-}
-
-/* Main buttons */
+/* Botones principales */
 section.main .stButton > button {
   border-radius: 6px !important;
   font-size: 13px !important;
-  border: 1px solid rgba(255,255,255,0.15) !important;
-  background: #1e1e1e !important;
-  color: #ccc !important;
+  border: 1px solid #ddd !important;
+  background: white !important;
+  color: #444 !important;
+  transition: all 0.15s !important;
 }
 section.main .stButton > button:hover {
-  background: var(--ald-red) !important;
+  background: #C8102E !important;
   color: white !important;
-  border-color: var(--ald-red) !important;
+  border-color: #C8102E !important;
 }
 
 /* Header */
-header[data-testid="stHeader"] { background: #2d2d2d !important; border-bottom: 1px solid rgba(255,255,255,0.08); }
-
-/* Expanders */
-[data-testid="stExpander"] { background: #3a3a3a !important; border-color: rgba(255,255,255,0.08) !important; }
-
-/* Dataframe */
-[data-testid="stDataFrame"] { background: #1e1e1e !important; }
-
-/* Divider */
-hr { border-color: rgba(255,255,255,0.08) !important; }
+header[data-testid="stHeader"] { background: white !important; border-bottom: 1px solid #e8e8e8 !important; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -873,8 +845,8 @@ elif menu == "📊 Dashboard":
 
         st.markdown(f"""
 <div style="margin-bottom:16px;">
-  <div style="font-size:22px;font-weight:500;color:#f0f0f0;">Ficha: {ref_d}</div>
-  <div style="font-size:12px;color:#666;margin-top:2px;">Detalle completo de la referencia</div>
+  <div style="font-size:22px;font-weight:500;color:#111;">Ficha: {ref_d}</div>
+  <div style="font-size:12px;color:#888;margin-top:2px;">Detalle completo de la referencia</div>
 </div>
 """, unsafe_allow_html=True)
 
@@ -964,8 +936,8 @@ elif menu == "📊 Dashboard":
     # ── DASHBOARD NORMAL ──────────────────────────────────────
     st.markdown("""
 <div style="margin-bottom:16px;">
-  <div style="font-size:22px;font-weight:500;color:#f0f0f0;">Dashboard - Bandejas</div>
-  <div style="font-size:12px;color:#666;margin-top:2px;">Inteligencia de aprovisionamiento | Aldelis</div>
+  <div style="font-size:22px;font-weight:500;color:#111;">Dashboard - Bandejas</div>
+  <div style="font-size:12px;color:#888;margin-top:2px;">Inteligencia de aprovisionamiento | Aldelis</div>
 </div>
 """, unsafe_allow_html=True)
 
@@ -1123,9 +1095,9 @@ elif menu == "📊 Dashboard":
 
     def render_dashboard_table(df_vista, cols):
         badge_map = {
-            "#721c24": ('background:rgba(200,16,46,0.35);color:#ff8080;', '#C8102E'),
-            "#856404": ('background:rgba(186,117,23,0.2);color:#ffb347;', '#BA7517'),
-            "#155724": ('background:rgba(99,153,34,0.2);color:#90c44a;', '#639922'),
+            "#721c24": ('background:#FCEBEB;color:#8B0B1F;', '#C8102E'),
+            "#856404": ('background:#FFF3CD;color:#856404;', '#BA7517'),
+            "#155724": ('background:#EAF3DE;color:#27500A;', '#639922'),
         }
         rows_html = ""
         for _, row in df_vista.iterrows():
@@ -1136,7 +1108,7 @@ elif menu == "📊 Dashboard":
             badge_style, dot_color = badge_map.get(color, badge_map["#155724"])
             dot = f'<span style="width:6px;height:6px;border-radius:50%;background:{dot_color};display:inline-block;margin-right:4px;"></span>'
             estado_badge = f'<span style="display:inline-flex;align-items:center;{badge_style}padding:3px 8px;border-radius:20px;font-size:11px;font-weight:500;">{dot}{estado_text}</span>'
-            row_bg = "background:rgba(200,16,46,0.12);" if color == "#721c24" else ""
+            row_bg = "background:#fff5f5;" if color == "#721c24" else ""
             cells = ""
             for col in cols:
                 val = row.get(col, "")
@@ -1144,15 +1116,15 @@ elif menu == "📊 Dashboard":
                     cells += f'<td style="padding:8px 12px;">{estado_badge}</td>'
                 elif col == 'Pedido_pal':
                     v = int(val) if val else 0
-                    style = "font-weight:500;color:#ff6b6b;" if v > 0 else "color:#555;"
+                    style = "font-weight:500;color:#C8102E;" if v > 0 else "color:#aaa;"
                     cells += f'<td style="padding:8px 12px;{style}">{v if v > 0 else "-"}</td>'
                 elif col == 'Descripcion':
-                    cells += f'<td style="padding:8px 12px;color:#999;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="{val}">{str(val)[:30]}</td>'
+                    cells += f'<td style="padding:8px 12px;color:#666;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="{val}">{str(val)[:30]}</td>'
                 elif col == 'Referencia':
-                    cells += f'<td style="padding:8px 12px;font-weight:600;color:#f0f0f0;">{val}</td>'
+                    cells += f'<td style="padding:8px 12px;font-weight:600;color:#111;">{val}</td>'
                 else:
-                    cells += f'<td style="padding:8px 12px;color:#ccc;">{val}</td>'
-            rows_html += f'<tr style="border-bottom:0.5px solid rgba(255,255,255,0.06);{row_bg}">{cells}</tr>'
+                    cells += f'<td style="padding:8px 12px;color:#333;">{val}</td>'
+            rows_html += f'<tr style="border-bottom:0.5px solid #f0f0f0;{row_bg}">{cells}</tr>'
         # Calcular ancho mínimo por columna basado en contenido
         col_widths = {}
         for col in cols:
@@ -1173,10 +1145,10 @@ elif menu == "📊 Dashboard":
                 col_widths[col] = f'min-width:{w}px;'
 
         headers = "".join([
-            f'<th style="padding:7px 12px;text-align:left;font-size:10px;font-weight:500;color:#666;text-transform:uppercase;letter-spacing:0.04em;background:#323232;border-bottom:1px solid rgba(255,255,255,0.08);{col_widths.get(c,"")}">{c}</th>'
+            f'<th style="padding:7px 12px;text-align:left;font-size:10px;font-weight:500;color:#666;text-transform:uppercase;letter-spacing:0.04em;background:#f8f8f8;border-bottom:1px solid rgba(255,255,255,0.08);{col_widths.get(c,"")}">{c}</th>'
             for c in cols
         ])
-        html = f'<div style="background:#3a3a3a;border-radius:12px;border:1px solid rgba(255,255,255,0.08);overflow:hidden;margin-top:8px;"><div style="overflow-x:auto;max-height:520px;overflow-y:auto;"><table style="width:100%;border-collapse:collapse;font-size:12px;table-layout:auto;"><thead style="position:sticky;top:0;z-index:1;"><tr>{headers}</tr></thead><tbody>{rows_html}</tbody></table></div></div>'
+        html = f'<div style="background:white;border-radius:12px;border:1px solid #e8e8e8;box-shadow:0 1px 4px rgba(0,0,0,0.06);overflow:hidden;margin-top:8px;"><div style="overflow-x:auto;max-height:520px;overflow-y:auto;"><table style="width:100%;border-collapse:collapse;font-size:12px;table-layout:auto;"><thead style="position:sticky;top:0;z-index:1;"><tr>{headers}</tr></thead><tbody>{rows_html}</tbody></table></div></div>'
         st.markdown(html, unsafe_allow_html=True)
 
     # Selector limpio para ficha detalle
