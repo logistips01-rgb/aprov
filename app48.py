@@ -173,20 +173,9 @@ st.set_page_config(page_title="Aprovisionamiento Aldelis", layout="wide")
 # ── CSS CORPORATIVO ALDELIS ───────────────────
 st.markdown("""
 <style>
-:root {
-  --ald-red: #E74C3C;
-  --ald-amber: #F39C12;
-  --ald-green: #27AE60;
-  --ald-blue: #2980B9;
-  --ald-sidebar: #2C3E50;
-  --ald-bg: #F8F9FA;
-  --ald-text: #333333;
-  --ald-muted: #777;
-}
-
 /* App background */
 .stApp, section[data-testid="stMain"], .main .block-container {
-  background: #F8F9FA !important;
+  background: #ECF0F1 !important;
 }
 
 /* Sidebar */
@@ -195,36 +184,42 @@ st.markdown("""
   border-right: none !important;
 }
 [data-testid="stSidebar"] * { color: #BDC3C7 !important; }
-[data-testid="stSidebar"] .stMarkdown p { color: #7F8C8D !important; font-size: 10px !important; text-transform: uppercase; letter-spacing: 0.08em; }
+[data-testid="stSidebar"] .stMarkdown p {
+  color: #5D6D7E !important;
+  font-size: 9px !important;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-weight: 700 !important;
+}
 
 /* Sidebar nav buttons */
 [data-testid="stSidebar"] .stButton > button {
-  border-radius: 6px !important;
-  font-size: 13px !important;
+  border-radius: 0 5px 5px 0 !important;
+  font-size: 12px !important;
   font-weight: 400 !important;
   border: none !important;
+  border-left: 2px solid transparent !important;
   background: transparent !important;
   color: #BDC3C7 !important;
   text-align: left !important;
-  padding: 8px 12px !important;
+  padding: 7px 10px !important;
   transition: all 0.15s !important;
   width: 100% !important;
 }
 [data-testid="stSidebar"] .stButton > button:hover {
-  background: rgba(255,255,255,0.08) !important;
+  background: rgba(255,255,255,0.07) !important;
   color: white !important;
 }
 
-/* Métricas - tarjetas blancas */
+/* Metricas */
 [data-testid="stMetric"] {
   background: white !important;
-  border-radius: 10px !important;
-  border: 1px solid #E8EAED !important;
-  padding: 14px 18px !important;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.06) !important;
+  border-radius: 8px !important;
+  border: 1px solid #D5D8DC !important;
+  padding: 10px 14px !important;
 }
-[data-testid="stMetricValue"] { font-size: 24px !important; font-weight: 600 !important; color: #2C3E50 !important; }
-[data-testid="stMetricLabel"] { font-size: 11px !important; color: #7F8C8D !important; font-weight: 500 !important; }
+[data-testid="stMetricValue"] { font-size: 22px !important; font-weight: 700 !important; color: #2C3E50 !important; }
+[data-testid="stMetricLabel"] { font-size: 10px !important; color: #7F8C8D !important; font-weight: 600 !important; text-transform: uppercase; letter-spacing: 0.04em; }
 
 /* Botones principales */
 section.main .stButton > button {
@@ -242,25 +237,20 @@ section.main .stButton > button:hover {
 }
 
 /* Selectbox e inputs */
-[data-testid="stSelectbox"] > div > div {
-  background: white !important;
-  border-color: #D5D8DC !important;
-  border-radius: 6px !important;
-}
-.stTextInput > div > div {
+[data-testid="stSelectbox"] > div > div, .stTextInput > div > div {
   background: white !important;
   border-color: #D5D8DC !important;
   border-radius: 6px !important;
 }
 
 /* Header */
-header[data-testid="stHeader"] { background: #F8F9FA !important; border-bottom: 1px solid #E8EAED !important; }
+header[data-testid="stHeader"] { background: #ECF0F1 !important; border-bottom: 1px solid #D5D8DC !important; }
 
 /* Expanders */
-[data-testid="stExpander"] { background: white !important; border: 1px solid #E8EAED !important; border-radius: 8px !important; }
+[data-testid="stExpander"] { background: white !important; border: 1px solid #D5D8DC !important; border-radius: 8px !important; }
 
 /* Divider */
-hr { border-color: #E8EAED !important; }
+hr { border-color: #D5D8DC !important; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -703,9 +693,12 @@ GRUPOS = {
 }
 
 for grupo, items in GRUPOS.items():
-    st.sidebar.markdown(f'<div style="font-size:10px;color:#aaa;text-transform:uppercase;letter-spacing:0.05em;padding:0 4px;margin:8px 0 4px;">{ grupo}</div>', unsafe_allow_html=True)
+    st.sidebar.markdown(f'<div style="font-size:9px;color:#5D6D7E;text-transform:uppercase;letter-spacing:0.1em;padding:0 6px;margin:10px 0 4px;font-weight:700;">{grupo}</div>', unsafe_allow_html=True)
     for item in items:
-        if st.sidebar.button(item, key=f"nav_{item}", use_container_width=True):
+        label = LABELS_MENU.get(item, item)
+        is_active = st.session_state.get("menu_activo") == item
+        btn_label = f"● {label}" if is_active else f"· {label}"
+        if st.sidebar.button(btn_label, key=f"nav_{item}", use_container_width=True):
             st.session_state["menu_activo"] = item
             st.rerun()
 
@@ -1152,7 +1145,7 @@ elif menu == "📊 Dashboard":
                     cells += f'<td style="padding:8px 12px;font-weight:600;color:#2C3E50;">{val}</td>'
                 else:
                     cells += f'<td style="padding:8px 12px;color:#555;">{val}</td>'
-            rows_html += f'<tr style="border-bottom:0.5px solid #F2F4F4;{row_bg}">{cells}</tr>'
+            rows_html += f'<tr style="border-bottom:1px solid #F2F3F4;{row_bg}">{cells}</tr>'
         # Calcular ancho mínimo por columna basado en contenido
         col_widths = {}
         for col in cols:
@@ -1173,10 +1166,10 @@ elif menu == "📊 Dashboard":
                 col_widths[col] = f'min-width:{w}px;'
 
         headers = "".join([
-            f'<th style="padding:7px 12px;text-align:left;font-size:10px;font-weight:500;color:#666;text-transform:uppercase;letter-spacing:0.04em;background:#f8f8f8;border-bottom:1px solid rgba(255,255,255,0.08);{col_widths.get(c,"")}">{c}</th>'
+            f'<th style="padding:7px 12px;text-align:left;font-size:10px;font-weight:700;color:#5D6D7E;text-transform:uppercase;letter-spacing:0.05em;background:#F4F6F7;border-bottom:2px solid #D5D8DC;{col_widths.get(c,"")}">{c}</th>'
             for c in cols
         ])
-        html = f'<div style="background:white;border-radius:10px;border:1px solid #E8EAED;box-shadow:0 1px 4px rgba(0,0,0,0.05);overflow:hidden;margin-top:8px;"><div style="overflow-x:auto;max-height:520px;overflow-y:auto;"><table style="width:100%;border-collapse:collapse;font-size:12px;table-layout:auto;"><thead style="position:sticky;top:0;z-index:1;"><tr>{headers}</tr></thead><tbody>{rows_html}</tbody></table></div></div>'
+        html = f'<div style="background:white;border-radius:10px;border:1px solid #D5D8DC;overflow:hidden;margin-top:8px;"><div style="overflow-x:auto;max-height:520px;overflow-y:auto;"><table style="width:100%;border-collapse:collapse;font-size:12px;table-layout:auto;"><thead style="position:sticky;top:0;z-index:1;"><tr>{headers}</tr></thead><tbody>{rows_html}</tbody></table></div></div>'
         st.markdown(html, unsafe_allow_html=True)
 
     # Selector limpio para ficha detalle
