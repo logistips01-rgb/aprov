@@ -415,6 +415,8 @@ if 'df_produccion_pt' not in st.session_state:
     st.session_state.df_produccion_pt = None
 if 'df_plan_produccion' not in st.session_state:
     st.session_state.df_plan_produccion = None
+if 'ref_detalle_bandeja' not in st.session_state:
+    st.session_state.ref_detalle_bandeja = None
 if 'logistica_historial' not in st.session_state:
     st.session_state.logistica_historial = []
 if 'logistica_archivos' not in st.session_state:
@@ -862,6 +864,104 @@ if menu == "📂 Cargar Archivos":
 # MÓDULO 2: DASHBOARD
 # ══════════════════════════════════════════════
 elif menu == "📊 Dashboard":
+    # ── FICHA DETALLE DE REFERENCIA ──────────────────────────
+    if st.session_state.ref_detalle_bandeja:
+        ref_d = st.session_state.ref_detalle_bandeja
+        if st.button("← Volver al Dashboard"):
+            st.session_state.ref_detalle_bandeja = None
+            st.rerun()
+
+        st.markdown(f"""
+<div style="margin-bottom:16px;">
+  <div style="font-size:22px;font-weight:500;color:#f0f0f0;">Ficha: {ref_d}</div>
+  <div style="font-size:12px;color:#666;margin-top:2px;">Detalle completo de la referencia</div>
+</div>
+""", unsafe_allow_html=True)
+
+        # Datos de la referencia
+        if st.session_state.df_final is not None:
+            df_d = st.session_state.df_final.copy()
+            df_d['Referencia'] = df_d['Referencia'].astype(str).str.strip().str.upper()
+            fila_d = df_d[df_d['Referencia'] == ref_d]
+
+            if not fila_d.empty:
+                r = fila_d.iloc[0]
+                u_p = max(r.get('Unidades_palet', 1), 1)
+
+                # Métricas básicas
+                c1,c2,c3,c4,c5 = st.columns(5)
+                c1.metric("Seg. (pal)", int(r.get('Stock_seguridad', 0)))
+                c2.metric("CDM (pal/día)", round(r.get('Cdm', 0), 1))
+                c3.metric("Lead time", f"{r.get('Lead_time', 0)} días")
+                c4.metric("Uds/palet", int(u_p))
+                c5.metric("Incremento", int(r.get('Incremento', 0)))
+
+                st.divider()
+
+                # Stock por almacén
+                st.markdown("**Stock por almacén (palets)**")
+                col_s1, col_s2, col_s3, col_s4 = st.columns(4)
+                col_s1.metric("Interno (AL6+SGA)", round(r.get('Stock_interno', 0) / u_p))
+                col_s2.metric("Merca", round(r.get('Stock_merca', 0) / u_p))
+                col_s3.metric("TXT", round(r.get('Stock_txt', 0) / u_p))
+                col_s4.metric("Avitrans", round(r.get('Stock_avitrans', 0) / u_p) if 'Stock_avitrans' in r.index else 0)
+
+                # Tránsito
+                t_d = st.session_state.df_transito.copy()
+                t_d['Referencia'] = t_d['Referencia'].astype(str).str.strip().str.upper()
+                trans1 = int(t_d[t_d['Referencia'] == ref_d]['Cantidad'].sum())
+                t_d2 = st.session_state.df_transito2.copy()
+                t_d2['Referencia'] = t_d2['Referencia'].astype(str).str.strip().str.upper()
+                trans2 = int(t_d2[t_d2['Referencia'] == ref_d]['Cantidad'].sum())
+                if trans1 > 0 or trans2 > 0:
+                    ct1, ct2 = st.columns(2)
+                    ct1.metric("Transito 1 (noche)", round(trans1 / u_p))
+                    ct2.metric("Transito 2 (manana)", round(trans2 / u_p))
+
+                st.divider()
+
+                # Productos que la consumen
+                if st.session_state.df_materiales is not None:
+                    mat_d = st.session_state.df_materiales.copy()
+                    mat_d['Codigo'] = mat_d['Codigo'].astype(str).str.strip().str.upper()
+                    productos_d = mat_d[mat_d['Codigo'] == ref_d][['Referencia', 'Descripcion']].drop_duplicates()
+                    st.markdown(f"**Productos que consumen esta bandeja ({len(productos_d)})**")
+                    if not productos_d.empty:
+                        st.dataframe(productos_d.reset_index(drop=True), use_container_width=True, height=200)
+                    else:
+                        st.info("No hay productos asociados en materiales.")
+
+                st.divider()
+
+                # Gráfica de consumo histórico
+                if st.session_state.df_consumos is not None:
+                    import plotly.express as px
+                    cons_d = st.session_state.df_consumos.copy()
+                    cons_d['Referencia'] = cons_d['Referencia'].astype(str).str.strip().str.upper()
+                    cons_d['Cantidad'] = cons_d['Cantidad'].abs()
+                    cons_ref = cons_d[cons_d['Referencia'] == ref_d].copy()
+                    if not cons_ref.empty:
+                        cons_ref['Fecha'] = pd.to_datetime(cons_ref['Fecha']).dt.normalize()
+                        cons_dia = cons_ref.groupby('Fecha')['Cantidad'].sum().reset_index()
+                        cons_dia = cons_dia.sort_values('Fecha').tail(30)
+                        cons_dia['Palets'] = (cons_dia['Cantidad'] / u_p).round(1)
+                        fig_d = px.bar(cons_dia, x='Fecha', y='Palets',
+                            title=f'Consumo diario - {ref_d} (ultimos 30 dias, en palets)',
+                            color_discrete_sequence=['#C8102E'])
+                        fig_d.update_layout(
+                            paper_bgcolor='rgba(0,0,0,0)',
+                            plot_bgcolor='rgba(0,0,0,0)',
+                            font_color='#ccc',
+                            title_font_color='#f0f0f0',
+                            xaxis=dict(gridcolor='rgba(255,255,255,0.05)'),
+                            yaxis=dict(gridcolor='rgba(255,255,255,0.05)')
+                        )
+                        st.plotly_chart(fig_d, use_container_width=True)
+                    else:
+                        st.info("Sin datos de consumo para esta referencia.")
+        st.stop()
+
+    # ── DASHBOARD NORMAL ──────────────────────────────────────
     st.markdown("""
 <div style="margin-bottom:16px;">
   <div style="font-size:22px;font-weight:500;color:#f0f0f0;">Dashboard - Bandejas</div>
@@ -1081,23 +1181,13 @@ elif menu == "📊 Dashboard":
 
     render_dashboard_table(vista, cols_mostrar)
 
-    # --- Detalle de productos asociados ---
-    if st.session_state.df_materiales is not None:
-        st.divider()
-        ref_sel = st.selectbox(
-            "🔍 Ver productos que consumen esta bandeja:",
-            [""] + sorted(vista['Referencia'].tolist()),
-            key="ref_detail"
-        )
-        if ref_sel:
-            mat_det = st.session_state.df_materiales.copy()
-            mat_det['Codigo'] = mat_det['Codigo'].astype(str).str.strip().str.upper()
-            productos = mat_det[mat_det['Codigo'] == ref_sel][['Referencia', 'Descripcion']].drop_duplicates()
-            with st.expander(f"📋 Productos que usan {ref_sel} ({len(productos)} referencias)", expanded=True):
-                if productos.empty:
-                    st.info("No hay productos asociados a esta referencia.")
-                else:
-                    st.dataframe(productos.reset_index(drop=True), use_container_width=True)
+    # --- Selector de referencia para ficha detalle ---
+    st.divider()
+    refs_disponibles_det = [""] + sorted(df['Referencia'].tolist())
+    ref_sel_det = st.selectbox("🔍 Ver ficha detalle de referencia:", refs_disponibles_det, key="ref_detail_sel")
+    if ref_sel_det and ref_sel_det != st.session_state.ref_detalle_bandeja:
+        st.session_state.ref_detalle_bandeja = ref_sel_det
+        st.rerun()
 
     # --- Exportar a Excel ---
     import io
