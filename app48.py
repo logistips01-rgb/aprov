@@ -176,24 +176,24 @@ st.markdown("""
 :root {
   --ald-red: #C8102E;
   --ald-red-light: rgba(200,16,46,0.15);
-  --ald-sidebar: #1a1a1a;
-  --ald-main: #111111;
-  --ald-card: #1e1e1e;
-  --ald-border: rgba(255,255,255,0.08);
+  --ald-sidebar: #2a2a2a;
+  --ald-main: #1e1e1e;
+  --ald-card: #2c2c2c;
+  --ald-border: rgba(255,255,255,0.1);
   --ald-text: #f0f0f0;
-  --ald-muted: #888;
+  --ald-muted: #999;
 }
 
 /* App background */
 .stApp, section[data-testid="stMain"], .main .block-container {
-  background: #111111 !important;
+  background: #1e1e1e !important;
   color: var(--ald-text) !important;
 }
 
 /* Sidebar dark */
 [data-testid="stSidebar"] {
-  background: #1a1a1a !important;
-  border-right: 1px solid var(--ald-border) !important;
+  background: #252525 !important;
+  border-right: 1px solid rgba(255,255,255,0.08) !important;
 }
 [data-testid="stSidebar"] * { color: #ccc !important; }
 
@@ -218,9 +218,9 @@ st.markdown("""
 
 /* Metricas */
 [data-testid="stMetric"] {
-  background: #1e1e1e !important;
+  background: #2c2c2c !important;
   border-radius: 8px !important;
-  border: 1px solid rgba(255,255,255,0.08) !important;
+  border: 1px solid rgba(255,255,255,0.1) !important;
   padding: 10px 14px !important;
 }
 [data-testid="stMetricValue"] { font-size: 22px !important; font-weight: 500 !important; color: white !important; }
@@ -251,10 +251,10 @@ section.main .stButton > button:hover {
 }
 
 /* Header */
-header[data-testid="stHeader"] { background: #111 !important; border-bottom: 1px solid rgba(255,255,255,0.08); }
+header[data-testid="stHeader"] { background: #1e1e1e !important; border-bottom: 1px solid rgba(255,255,255,0.08); }
 
 /* Expanders */
-[data-testid="stExpander"] { background: #1e1e1e !important; border-color: rgba(255,255,255,0.08) !important; }
+[data-testid="stExpander"] { background: #2c2c2c !important; border-color: rgba(255,255,255,0.08) !important; }
 
 /* Dataframe */
 [data-testid="stDataFrame"] { background: #1e1e1e !important; }
@@ -1073,10 +1073,10 @@ elif menu == "📊 Dashboard":
                 col_widths[col] = f'min-width:{w}px;'
 
         headers = "".join([
-            f'<th style="padding:7px 12px;text-align:left;font-size:10px;font-weight:500;color:#666;text-transform:uppercase;letter-spacing:0.04em;background:#161616;border-bottom:1px solid rgba(255,255,255,0.08);{col_widths.get(c,"")}">{c}</th>'
+            f'<th style="padding:7px 12px;text-align:left;font-size:10px;font-weight:500;color:#666;text-transform:uppercase;letter-spacing:0.04em;background:#222;border-bottom:1px solid rgba(255,255,255,0.08);{col_widths.get(c,"")}">{c}</th>'
             for c in cols
         ])
-        html = f'<div style="background:#1e1e1e;border-radius:12px;border:1px solid rgba(255,255,255,0.08);overflow:hidden;margin-top:8px;"><div style="overflow-x:auto;max-height:520px;overflow-y:auto;"><table style="width:100%;border-collapse:collapse;font-size:12px;table-layout:auto;"><thead style="position:sticky;top:0;z-index:1;"><tr>{headers}</tr></thead><tbody>{rows_html}</tbody></table></div></div>'
+        html = f'<div style="background:#2c2c2c;border-radius:12px;border:1px solid rgba(255,255,255,0.08);overflow:hidden;margin-top:8px;"><div style="overflow-x:auto;max-height:520px;overflow-y:auto;"><table style="width:100%;border-collapse:collapse;font-size:12px;table-layout:auto;"><thead style="position:sticky;top:0;z-index:1;"><tr>{headers}</tr></thead><tbody>{rows_html}</tbody></table></div></div>'
         st.markdown(html, unsafe_allow_html=True)
 
     render_dashboard_table(vista, cols_mostrar)
