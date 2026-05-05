@@ -194,11 +194,11 @@ st.markdown("""
 
 /* Sidebar nav buttons */
 [data-testid="stSidebar"] .stButton > button {
-  border-radius: 0 5px 5px 0 !important;
+  border-radius: 0 6px 6px 0 !important;
   font-size: 12px !important;
-  font-weight: 400 !important;
+  font-weight: 500 !important;
   border: none !important;
-  border-left: 2px solid transparent !important;
+  border-left: 3px solid transparent !important;
   background: transparent !important;
   color: #BDC3C7 !important;
   text-align: left !important;
@@ -209,6 +209,13 @@ st.markdown("""
 [data-testid="stSidebar"] .stButton > button:hover {
   background: rgba(255,255,255,0.07) !important;
   color: white !important;
+  border-left-color: rgba(231,76,60,0.5) !important;
+}
+[data-testid="stSidebar"] .stButton > button:focus {
+  background: rgba(231,76,60,0.15) !important;
+  color: white !important;
+  border-left-color: #E74C3C !important;
+  box-shadow: inset 0 0 0 1px rgba(231,76,60,0.3) !important;
 }
 
 /* Metricas */
@@ -712,10 +719,12 @@ for grupo, items in GRUPOS.items():
     for item in items:
         label = LABELS_MENU.get(item, item)
         is_active = st.session_state.get("menu_activo") == item
-        btn_label = f"● {label}" if is_active else f"· {label}"
-        if st.sidebar.button(btn_label, key=f"nav_{item}", use_container_width=True):
-            st.session_state["menu_activo"] = item
-            st.rerun()
+        if is_active:
+            st.sidebar.markdown(f'''<div style="border-left:3px solid #E74C3C;background:rgba(231,76,60,0.15);border-radius:0 6px 6px 0;padding:7px 10px;margin-bottom:2px;color:white;font-size:12px;font-weight:600;">&#9679; {label}</div>''', unsafe_allow_html=True)
+        else:
+            if st.sidebar.button(f"● {label}", key=f"nav_{item}", use_container_width=True):
+                st.session_state["menu_activo"] = item
+                st.rerun()
 
 if "menu_activo" not in st.session_state:
     st.session_state["menu_activo"] = "📊 Dashboard"
