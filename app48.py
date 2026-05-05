@@ -1179,29 +1179,15 @@ elif menu == "📊 Dashboard":
         html = f'<div style="background:#2c2c2c;border-radius:12px;border:1px solid rgba(255,255,255,0.08);overflow:hidden;margin-top:8px;"><div style="overflow-x:auto;max-height:520px;overflow-y:auto;"><table style="width:100%;border-collapse:collapse;font-size:12px;table-layout:auto;"><thead style="position:sticky;top:0;z-index:1;"><tr>{headers}</tr></thead><tbody>{rows_html}</tbody></table></div></div>'
         st.markdown(html, unsafe_allow_html=True)
 
-    render_dashboard_table(vista, cols_mostrar)
-
-    # --- Botones de acceso rápido a ficha detalle ---
-    st.markdown("<div style='margin-top:12px;font-size:11px;color:#666;'>Pincha una referencia para ver su ficha detalle:</div>", unsafe_allow_html=True)
-    refs_list = vista['Referencia'].tolist()
-    n_cols = 8
-    for i in range(0, len(refs_list), n_cols):
-        chunk = refs_list[i:i+n_cols]
-        btn_cols = st.columns(len(chunk))
-        for j, ref_b in enumerate(chunk):
-            color_ref = vista[vista['Referencia'] == ref_b]['Color'].values[0] if ref_b in vista['Referencia'].values else '#155724'
-            btn_style = "background:rgba(200,16,46,0.2);border:1px solid rgba(200,16,46,0.4);color:#ff8080;" if color_ref == '#721c24' else ("background:rgba(186,117,23,0.2);border:1px solid rgba(186,117,23,0.4);color:#ffb347;" if color_ref == '#856404' else "background:rgba(44,44,44,0.8);border:1px solid rgba(255,255,255,0.1);color:#ccc;")
-            if btn_cols[j].button(ref_b, key=f"det_{ref_b}", use_container_width=True):
-                st.session_state.ref_detalle_bandeja = ref_b
-                st.rerun()
-
-    # --- Selector de referencia para ficha detalle ---
-    st.divider()
-    refs_disponibles_det = [""] + sorted(df['Referencia'].tolist())
-    ref_sel_det = st.selectbox("🔍 Ver ficha detalle de referencia:", refs_disponibles_det, key="ref_detail_sel")
-    if ref_sel_det and ref_sel_det != st.session_state.ref_detalle_bandeja:
+    # Selector limpio para ficha detalle
+    refs_disponibles_det = ["— Selecciona referencia —"] + list(dict.fromkeys(df['Referencia'].tolist()))
+    col_sel, _ = st.columns([2, 3])
+    ref_sel_det = col_sel.selectbox("", refs_disponibles_det, key="ref_detail_sel", label_visibility="collapsed")
+    if ref_sel_det and ref_sel_det != "— Selecciona referencia —":
         st.session_state.ref_detalle_bandeja = ref_sel_det
         st.rerun()
+
+    render_dashboard_table(vista, cols_mostrar)
 
     # --- Exportar a Excel ---
     import io
