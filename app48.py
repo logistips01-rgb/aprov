@@ -865,10 +865,16 @@ if menu == "📂 Cargar Archivos":
 # ══════════════════════════════════════════════
 elif menu == "📊 Dashboard":
     # ── FICHA DETALLE DE REFERENCIA ──────────────────────────
+    # Leer desde query params si viene de click en tabla
+    qp = st.query_params
+    if 'ref' in qp and qp['ref']:
+        st.session_state.ref_detalle_bandeja = qp['ref']
+
     if st.session_state.ref_detalle_bandeja:
         ref_d = st.session_state.ref_detalle_bandeja
         if st.button("← Volver al Dashboard"):
             st.session_state.ref_detalle_bandeja = None
+            st.query_params.clear()
             st.rerun()
 
         st.markdown(f"""
@@ -1123,7 +1129,7 @@ elif menu == "📊 Dashboard":
 
     def render_dashboard_table(df_vista, cols):
         badge_map = {
-            "#721c24": ('background:rgba(200,16,46,0.2);color:#ff6b6b;', '#C8102E'),
+            "#721c24": ('background:rgba(200,16,46,0.35);color:#ff8080;', '#C8102E'),
             "#856404": ('background:rgba(186,117,23,0.2);color:#ffb347;', '#BA7517'),
             "#155724": ('background:rgba(99,153,34,0.2);color:#90c44a;', '#639922'),
         }
@@ -1136,7 +1142,7 @@ elif menu == "📊 Dashboard":
             badge_style, dot_color = badge_map.get(color, badge_map["#155724"])
             dot = f'<span style="width:6px;height:6px;border-radius:50%;background:{dot_color};display:inline-block;margin-right:4px;"></span>'
             estado_badge = f'<span style="display:inline-flex;align-items:center;{badge_style}padding:3px 8px;border-radius:20px;font-size:11px;font-weight:500;">{dot}{estado_text}</span>'
-            row_bg = "background:rgba(200,16,46,0.05);" if color == "#721c24" else ""
+            row_bg = "background:rgba(200,16,46,0.12);" if color == "#721c24" else ""
             cells = ""
             for col in cols:
                 val = row.get(col, "")
@@ -1149,7 +1155,8 @@ elif menu == "📊 Dashboard":
                 elif col == 'Descripcion':
                     cells += f'<td style="padding:8px 12px;color:#999;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="{val}">{str(val)[:30]}</td>'
                 elif col == 'Referencia':
-                    cells += f'<td style="padding:8px 12px;font-weight:500;color:#f0f0f0;">{val}</td>'
+                    link = f'<a href="?ref={val}" target="_self" style="color:#C8102E;text-decoration:none;font-weight:600;">{val}</a>'
+                    cells += f'<td style="padding:8px 12px;font-weight:500;">{link}</td>'
                 else:
                     cells += f'<td style="padding:8px 12px;color:#ccc;">{val}</td>'
             rows_html += f'<tr style="border-bottom:0.5px solid rgba(255,255,255,0.06);{row_bg}">{cells}</tr>'
