@@ -1168,7 +1168,7 @@ elif menu == "📊 Dashboard":
             badge_style, dot_color = badge_map.get(color, badge_map["#155724"])
             dot = f'<span style="width:6px;height:6px;border-radius:50%;background:{dot_color};display:inline-block;margin-right:4px;"></span>'
             estado_badge = f'<span style="display:inline-flex;align-items:center;{badge_style}padding:3px 8px;border-radius:20px;font-size:11px;font-weight:500;">{dot}{estado_text}</span>'
-            row_bg = "background:#FEF9F9;" if color == "#721c24" else ("background:#FDFEFE;" if _ % 2 == 0 else "")
+            row_bg = "background:#FEF9F9;" if color == "#721c24" else ("background:#F0FBF4;" if color == "#155724" else "")
             cells = ""
             for col in cols:
                 val = row.get(col, "")
@@ -2119,7 +2119,7 @@ elif menu == "🏷️ Etiquetas":
                 badge_style, dot_color = badge_map.get(color, badge_map["#155724"])
                 dot = f'<span style="width:5px;height:5px;border-radius:50%;background:{dot_color};display:inline-block;margin-right:4px;"></span>'
                 estado_badge = f'<span style="display:inline-flex;align-items:center;{badge_style}padding:3px 8px;border-radius:20px;font-size:10px;font-weight:600;">{dot}{estado_text}</span>'
-                row_bg = "background:#FEF9F9;" if color == "#721c24" else ("background:#FDFEFE;" if idx % 2 == 0 else "")
+                row_bg = "background:#FEF9F9;" if color == "#721c24" else ("background:#F0FBF4;" if color == "#155724" else "")
                 cells = ""
                 for col in cols:
                     val = row.get(col, "")
