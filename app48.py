@@ -175,102 +175,92 @@ st.markdown("""
 <style>
 :root {
   --ald-red: #C8102E;
-  --ald-red-light: #FCEBEB;
-  --ald-red-dark: #8B0B1F;
+  --ald-red-light: rgba(200,16,46,0.15);
+  --ald-sidebar: #1a1a1a;
+  --ald-main: #111111;
+  --ald-card: #1e1e1e;
+  --ald-border: rgba(255,255,255,0.08);
+  --ald-text: #f0f0f0;
+  --ald-muted: #888;
 }
 
-/* Sidebar */
+/* App background */
+.stApp, section[data-testid="stMain"], .main .block-container {
+  background: #111111 !important;
+  color: var(--ald-text) !important;
+}
+
+/* Sidebar dark */
 [data-testid="stSidebar"] {
-  background: white !important;
-  border-right: 1px solid #e5e5e5 !important;
+  background: #1a1a1a !important;
+  border-right: 1px solid var(--ald-border) !important;
 }
-[data-testid="stSidebar"] > div:first-child { padding-top: 1rem; }
+[data-testid="stSidebar"] * { color: #ccc !important; }
 
-/* Quitar el radio button nativo */
-[data-testid="stSidebar"] .stRadio > label { display: none; }
-[data-testid="stSidebar"] .stRadio > div { gap: 2px !important; }
-[data-testid="stSidebar"] .stRadio div[role="radiogroup"] { gap: 2px !important; }
-[data-testid="stSidebar"] .stRadio label[data-baseweb="radio"] {
-  background: transparent !important;
-  border-radius: 8px !important;
-  padding: 7px 10px !important;
-  width: 100% !important;
-  border: none !important;
-  cursor: pointer;
-  transition: background 0.15s;
-}
-[data-testid="stSidebar"] .stRadio label[data-baseweb="radio"]:hover {
-  background: #f5f5f5 !important;
-}
-[data-testid="stSidebar"] .stRadio label[aria-checked="true"][data-baseweb="radio"] {
-  background: var(--ald-red-light) !important;
-  color: var(--ald-red-dark) !important;
-  font-weight: 500 !important;
-}
-[data-testid="stSidebar"] .stRadio label[aria-checked="true"] p {
-  color: var(--ald-red-dark) !important;
-  font-weight: 500 !important;
-}
-[data-testid="stSidebar"] .stRadio div[data-testid="stMarkdownContainer"] p {
-  font-size: 13px !important;
-}
-/* Ocultar círculo del radio */
-[data-testid="stSidebar"] .stRadio input[type="radio"] { display: none !important; }
-[data-testid="stSidebar"] .stRadio span[data-testid] { display: none !important; }
-
-/* Métricas */
-[data-testid="stMetric"] {
-  background: white;
-  border-radius: 8px;
-  border: 0.5px solid #e5e5e5;
-  padding: 10px 14px !important;
-}
-[data-testid="stMetricValue"] { font-size: 22px !important; font-weight: 500 !important; }
-[data-testid="stMetricLabel"] { font-size: 11px !important; }
-
-/* Botones navegación sidebar */
+/* Sidebar nav buttons */
 [data-testid="stSidebar"] .stButton > button {
-  border-radius: 8px !important;
+  border-radius: 6px !important;
   font-size: 13px !important;
   font-weight: 400 !important;
-  border: none !important;
-  background: transparent !important;
-  color: var(--color-text-secondary) !important;
+  border: 1px solid rgba(255,255,255,0.1) !important;
+  background: rgba(255,255,255,0.04) !important;
+  color: #ccc !important;
   text-align: left !important;
-  padding: 7px 10px !important;
-  transition: background 0.15s !important;
+  padding: 8px 12px !important;
+  transition: all 0.15s !important;
+  width: 100% !important;
 }
 [data-testid="stSidebar"] .stButton > button:hover {
-  background: #f5f5f5 !important;
-  color: #111 !important;
+  background: rgba(200,16,46,0.15) !important;
+  color: white !important;
+  border-color: rgba(200,16,46,0.4) !important;
 }
 
-/* Botones principales fuera del sidebar */
-section.main .stButton > button {
-  border-radius: 8px !important;
-  font-size: 13px !important;
-  font-weight: 500 !important;
-  border: 1px solid #e5e5e5 !important;
-  transition: all 0.15s !important;
-}
-
-/* Header de la app */
-header[data-testid="stHeader"] { background: white !important; border-bottom: 1px solid #e5e5e5; }
-
-/* Fondo gris del área principal */
-.main .block-container { background: #F2F2F0 !important; }
-section[data-testid="stMain"] { background: #F2F2F0 !important; }
-.stApp { background: #F2F2F0 !important; }
-
-/* Métricas blancas */
+/* Metricas */
 [data-testid="stMetric"] {
-  background: white !important;
+  background: #1e1e1e !important;
   border-radius: 8px !important;
-  border: 0.5px solid #e5e5e5 !important;
-  padding: 12px 16px !important;
+  border: 1px solid rgba(255,255,255,0.08) !important;
+  padding: 10px 14px !important;
 }
-[data-testid="stMetricValue"] { font-size: 22px !important; font-weight: 500 !important; }
+[data-testid="stMetricValue"] { font-size: 22px !important; font-weight: 500 !important; color: white !important; }
 [data-testid="stMetricLabel"] { font-size: 11px !important; color: #888 !important; }
+
+/* Titles and text */
+h1, h2, h3, .stMarkdown p, label { color: var(--ald-text) !important; }
+
+/* Selectbox, inputs */
+[data-testid="stSelectbox"] > div, .stTextInput > div > div {
+  background: #1e1e1e !important;
+  border-color: rgba(255,255,255,0.1) !important;
+  color: white !important;
+}
+
+/* Main buttons */
+section.main .stButton > button {
+  border-radius: 6px !important;
+  font-size: 13px !important;
+  border: 1px solid rgba(255,255,255,0.15) !important;
+  background: #1e1e1e !important;
+  color: #ccc !important;
+}
+section.main .stButton > button:hover {
+  background: var(--ald-red) !important;
+  color: white !important;
+  border-color: var(--ald-red) !important;
+}
+
+/* Header */
+header[data-testid="stHeader"] { background: #111 !important; border-bottom: 1px solid rgba(255,255,255,0.08); }
+
+/* Expanders */
+[data-testid="stExpander"] { background: #1e1e1e !important; border-color: rgba(255,255,255,0.08) !important; }
+
+/* Dataframe */
+[data-testid="stDataFrame"] { background: #1e1e1e !important; }
+
+/* Divider */
+hr { border-color: rgba(255,255,255,0.08) !important; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -522,7 +512,7 @@ def obtener_contexto_agente():
         penultima = fechas_list[1] if len(fechas_list) > 1 else None
         lineas.append(f"FECHA ACTUAL: {ultima}")
 
-        # Stock hoy — solo campos clave
+        # Stock hoy - solo campos clave
         hoy = pd.read_sql(f"SELECT referencia, descripcion, stock_interno, stock_merca, stock_txt, cdm, stock_seguridad, unidades_palet FROM snapshots WHERE fecha='{ultima}'", con)
         hoy['u_p'] = hoy['unidades_palet'].clip(lower=1)
         hoy['pal_int']   = (hoy['stock_interno'] / hoy['u_p']).round()
@@ -721,7 +711,7 @@ if "menu_activo" not in st.session_state:
     st.session_state["menu_activo"] = "📊 Dashboard"
 
 menu = st.session_state["menu_activo"]
-st.sidebar.markdown('<div style="margin-top:16px;font-size:10px;color:#bbb;text-align:center;">v2.0 — Aprovisionamiento Aldelis</div>', unsafe_allow_html=True)
+st.sidebar.markdown('<div style="margin-top:16px;font-size:10px;color:#bbb;text-align:center;">v2.0 - Aprovisionamiento Aldelis</div>', unsafe_allow_html=True)
 
 # ══════════════════════════════════════════════
 # MÓDULO 1: CARGAR ARCHIVOS
@@ -786,7 +776,7 @@ if menu == "📂 Cargar Archivos":
         for df in [m, s, c]:
             df['Referencia'] = df['Referencia'].astype(str).str.strip().str.upper()
 
-        # --- Procesar Stock por almacén ---
+        # --- Procesar Stock por almacen ---
         s['Almacen'] = s['Almacen'].astype(str).str.strip()
         s['Cantidad'] = pd.to_numeric(s['Cantidad'], errors='coerce').fillna(0)
 
@@ -848,7 +838,7 @@ if menu == "📂 Cargar Archivos":
         final = pd.merge(m, res_stock, on='Referencia', how='inner')
         final = pd.merge(final, cdm,      on='Referencia', how='left')
 
-        # Rellenar numéricos con 0 donde no haya consumos o datos
+        # Rellenar numericos con 0 donde no haya consumos o datos
         for col in ['Cdm', 'Stock_interno', 'Stock_merca', 'Stock_txt', 'Lead_time', 'Stock_seguridad', 'Unidades_palet', 'Incremento']:
             if col in final.columns:
                 final[col] = pd.to_numeric(final[col], errors='coerce').fillna(0)
@@ -872,7 +862,12 @@ if menu == "📂 Cargar Archivos":
 # MÓDULO 2: DASHBOARD
 # ══════════════════════════════════════════════
 elif menu == "📊 Dashboard":
-    st.header("📊 Aprovisionamiento Aldelis")
+    st.markdown("""
+<div style="margin-bottom:16px;">
+  <div style="font-size:22px;font-weight:500;color:#f0f0f0;">Dashboard - Bandejas</div>
+  <div style="font-size:12px;color:#666;margin-top:2px;">Inteligencia de aprovisionamiento | Aldelis</div>
+</div>
+""", unsafe_allow_html=True)
 
     if st.session_state.df_final is None:
         st.warning("⚠️ Primero carga y sincroniza los archivos.")
@@ -992,11 +987,11 @@ elif menu == "📊 Dashboard":
     vista['Dias_stock'] = vista.index.map(df['Dias_stock'])
     vista['Var_semana'] = vista.index.map(df['Var_semana'])
 
-    # --- Métricas resumen ---
+    # --- Metricas resumen ---
     total_alertas  = (df['Estado'].str.startswith("🔴")).sum()
     rotura_critica = (df['Dias_stock'] < df['Lead_time']).sum()
 
-    # Totales por almacén en palets
+    # Totales por almacen en palets
     total_pal_int = int(df['Pal_Interno'].sum())
     total_pal_txt = int(df['Pal_TXT'].sum())
 
@@ -1008,7 +1003,7 @@ elif menu == "📊 Dashboard":
     m5.metric("🏭 Pal. Interno", total_pal_int)
     m6.metric("📦 Pal. TXT", total_pal_txt)
 
-    # --- Extraer pedido como columna numérica ---
+    # --- Extraer pedido como columna numerica ---
     def extraer_pedido(estado):
         import re
         m = re.search(r'COMPRAR: (\d+)', estado)
@@ -1028,9 +1023,9 @@ elif menu == "📊 Dashboard":
 
     def render_dashboard_table(df_vista, cols):
         badge_map = {
-            "#721c24": ('background:#FCEBEB;color:#791F1F;', '#C8102E'),
-            "#856404": ('background:#FAEEDA;color:#633806;', '#BA7517'),
-            "#155724": ('background:#EAF3DE;color:#27500A;', '#639922'),
+            "#721c24": ('background:rgba(200,16,46,0.2);color:#ff6b6b;', '#C8102E'),
+            "#856404": ('background:rgba(186,117,23,0.2);color:#ffb347;', '#BA7517'),
+            "#155724": ('background:rgba(99,153,34,0.2);color:#90c44a;', '#639922'),
         }
         rows_html = ""
         for _, row in df_vista.iterrows():
@@ -1041,7 +1036,7 @@ elif menu == "📊 Dashboard":
             badge_style, dot_color = badge_map.get(color, badge_map["#155724"])
             dot = f'<span style="width:6px;height:6px;border-radius:50%;background:{dot_color};display:inline-block;margin-right:4px;"></span>'
             estado_badge = f'<span style="display:inline-flex;align-items:center;{badge_style}padding:3px 8px;border-radius:20px;font-size:11px;font-weight:500;">{dot}{estado_text}</span>'
-            row_bg = "background:#fff9f9;" if color == "#721c24" else ""
+            row_bg = "background:rgba(200,16,46,0.05);" if color == "#721c24" else ""
             cells = ""
             for col in cols:
                 val = row.get(col, "")
@@ -1049,15 +1044,15 @@ elif menu == "📊 Dashboard":
                     cells += f'<td style="padding:8px 12px;">{estado_badge}</td>'
                 elif col == 'Pedido_pal':
                     v = int(val) if val else 0
-                    style = "font-weight:500;color:#C8102E;" if v > 0 else "color:#aaa;"
-                    cells += f'<td style="padding:8px 12px;{style}">{v if v > 0 else "—"}</td>'
+                    style = "font-weight:500;color:#ff6b6b;" if v > 0 else "color:#555;"
+                    cells += f'<td style="padding:8px 12px;{style}">{v if v > 0 else "-"}</td>'
                 elif col == 'Descripcion':
-                    cells += f'<td style="padding:8px 12px;color:#666;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="{val}">{str(val)[:30]}</td>'
+                    cells += f'<td style="padding:8px 12px;color:#999;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="{val}">{str(val)[:30]}</td>'
                 elif col == 'Referencia':
-                    cells += f'<td style="padding:8px 12px;font-weight:500;">{val}</td>'
+                    cells += f'<td style="padding:8px 12px;font-weight:500;color:#f0f0f0;">{val}</td>'
                 else:
-                    cells += f'<td style="padding:8px 12px;">{val}</td>'
-            rows_html += f'<tr style="border-bottom:0.5px solid #f0f0f0;{row_bg}">{cells}</tr>'
+                    cells += f'<td style="padding:8px 12px;color:#ccc;">{val}</td>'
+            rows_html += f'<tr style="border-bottom:0.5px solid rgba(255,255,255,0.06);{row_bg}">{cells}</tr>'
         # Calcular ancho mínimo por columna basado en contenido
         col_widths = {}
         for col in cols:
@@ -1078,10 +1073,10 @@ elif menu == "📊 Dashboard":
                 col_widths[col] = f'min-width:{w}px;'
 
         headers = "".join([
-            f'<th style="padding:7px 12px;text-align:left;font-size:10px;font-weight:500;color:#888;text-transform:uppercase;letter-spacing:0.04em;background:#fafafa;border-bottom:1px solid #e5e5e5;{col_widths.get(c,"")}">{c}</th>'
+            f'<th style="padding:7px 12px;text-align:left;font-size:10px;font-weight:500;color:#666;text-transform:uppercase;letter-spacing:0.04em;background:#161616;border-bottom:1px solid rgba(255,255,255,0.08);{col_widths.get(c,"")}">{c}</th>'
             for c in cols
         ])
-        html = f'<div style="background:white;border-radius:12px;border:0.5px solid #e5e5e5;overflow:hidden;margin-top:8px;"><div style="overflow-x:auto;max-height:520px;overflow-y:auto;"><table style="width:100%;border-collapse:collapse;font-size:12px;table-layout:auto;"><thead style="position:sticky;top:0;z-index:1;"><tr>{headers}</tr></thead><tbody>{rows_html}</tbody></table></div></div>'
+        html = f'<div style="background:#1e1e1e;border-radius:12px;border:1px solid rgba(255,255,255,0.08);overflow:hidden;margin-top:8px;"><div style="overflow-x:auto;max-height:520px;overflow-y:auto;"><table style="width:100%;border-collapse:collapse;font-size:12px;table-layout:auto;"><thead style="position:sticky;top:0;z-index:1;"><tr>{headers}</tr></thead><tbody>{rows_html}</tbody></table></div></div>'
         st.markdown(html, unsafe_allow_html=True)
 
     render_dashboard_table(vista, cols_mostrar)
@@ -1175,7 +1170,7 @@ elif menu == "🚢 Tránsito":
                         df_a_firebase(df_t[['Referencia', 'Cantidad']], coleccion_t, key)
                         st.success(f"✅ {label} cargado.")
                         st.rerun()
-            st.subheader(f"Listado actual — {label}")
+            st.subheader(f"Listado actual - {label}")
             if st.session_state[key].empty:
                 st.info("No hay mercancía en tránsito registrada.")
             else:
@@ -1210,9 +1205,9 @@ elif menu == "📈 Análisis":
     import plotly.express as px
 
     # ── MÉTRICAS GLOBALES ──────────────────────────────────────
-    st.subheader("📦 Totales por Almacén (Palets)")
+    st.subheader("📦 Totales por Almacen (Palets)")
 
-    # Recalcular palets por almacén
+    # Recalcular palets por almacen
     df['u_p'] = df['Unidades_palet'].clip(lower=1)
     total_int   = (df['Stock_interno'] / df['u_p']).round().sum()
     total_merca = (df['Stock_merca']   / df['u_p']).round().sum()
@@ -1348,7 +1343,7 @@ elif menu == "🤖 Agente IA":
         hoy = pd.Timestamp.now().normalize()
         lineas.append(f"FECHA: {hoy.strftime('%Y-%m-%d')} ({hoy.strftime('%A')})")
 
-        # Detectar qué secciones son relevantes
+        # Detectar que secciones son relevantes
         habla_etiquetas  = any(w in p for w in ['etiqueta', 'etiqu', 'label', 'stiker', 'stikers'])
         habla_bandejas   = any(w in p for w in ['bandeja', 'band', 'stock interno', 'pal', 'palets'])
         habla_historico  = any(w in p for w in ['ayer', 'semana', 'dia', 'consumo', 'historico', 'tendencia', 'evolucion'])
@@ -1532,7 +1527,7 @@ Puedes responder sobre:
 - Obsoletos y referencias sin ventas
 - Cualquier análisis o pregunta sobre el negocio de aprovisionamiento
 
-Responde siempre en español. Sé preciso, analítico y práctico. 
+Responde siempre en español. Se preciso, analítico y práctico. 
 Cuando des recomendaciones, basa las en los datos reales del contexto.
 Si detectas patrones o anomalías en los datos, menciónalos proactivamente.""",
             "messages": ant_messages
@@ -1555,11 +1550,11 @@ Si detectas patrones o anomalías en los datos, menciónalos proactivamente.""",
     # ── PREGUNTAS RÁPIDAS ─────────────────────────────────────
     st.subheader("💡 Preguntas rápidas")
     preguntas_rapidas = [
-        "¿Qué referencias necesito pedir urgentemente?",
-        "¿Qué etiquetas están por debajo del consumo mensual?",
+        "¿Que referencias necesito pedir urgentemente?",
+        "¿Que etiquetas están por debajo del consumo mensual?",
         "¿Hay materiales obsoletos con movimientos recientes?",
         "Dame un resumen del estado general del inventario",
-        "¿Qué referencias de planificación tienen stock insuficiente?"
+        "¿Que referencias de planificación tienen stock insuficiente?"
     ]
     cols_p = st.columns(len(preguntas_rapidas))
     for i, (col, preg) in enumerate(zip(cols_p, preguntas_rapidas)):
@@ -1604,7 +1599,7 @@ Si detectas patrones o anomalías en los datos, menciónalos proactivamente.""",
                     except Exception as e:
                         err_str = str(e)
                         if 'credit' in err_str.lower() or 'balance' in err_str.lower() or 'billing' in err_str.lower():
-                            resp_claude = "💳 Sin saldo en Claude. Recarga créditos en console.anthropic.com"
+                            resp_claude = "💳 Sin saldo en Claude. Recarga creditos en console.anthropic.com"
                             st.warning(resp_claude)
                         else:
                             resp_claude = f"Error: {e}"
@@ -1695,7 +1690,7 @@ elif menu == "🔗 Materiales":
         else:
             # Nombre del material
             nombre_mat = resultado['Descripcion_material'].iloc[0]
-            st.markdown(f"### 📦 `{codigo_final}` — {nombre_mat}")
+            st.markdown(f"### 📦 `{codigo_final}` - {nombre_mat}")
             st.markdown(f"**{len(resultado)} productos** usan este material:")
 
             st.dataframe(
@@ -1730,7 +1725,7 @@ elif menu == "🔗 Materiales":
     if buscar_ref:
         resultado_inv = df_mat[df_mat['Referencia'] == buscar_ref]
         nombre_prod = resultado_inv['Descripcion'].iloc[0]
-        st.markdown(f"### 🏷️ `{buscar_ref}` — {nombre_prod}")
+        st.markdown(f"### 🏷️ `{buscar_ref}` - {nombre_prod}")
         st.markdown(f"**{len(resultado_inv)} materiales** usa este producto:")
         st.dataframe(
             resultado_inv[['Codigo', 'Descripcion_material']].reset_index(drop=True),
@@ -1969,7 +1964,7 @@ elif menu == "🏷️ Etiquetas":
         if buscar_etq:
             vista_etq = vista_etq[vista_etq['Referencia'].str.contains(buscar_etq, case=False, na=False)]
 
-        # Métricas
+        # Metricas
         alertas_etq    = (df_etq['Estado'].str.startswith("🔴")).sum()
         amarillas_etq  = (df_etq['Estado'].str.startswith("🟡")).sum()
         total_int_etq  = int(df_etq['Stk_Interno'].sum())
@@ -2055,7 +2050,7 @@ elif menu == "📋 Pedidos":
 
     vista_ped = vista_ped.sort_values('Fecha_entrega', ascending=False)
 
-    # ── Métricas ─────────────────────────────
+    # ── Metricas ─────────────────────────────
     hoy = pd.Timestamp.now().normalize()
     pendientes = df_ped[df_ped['Fecha_entrega'] >= hoy]
     mp1, mp2, mp3 = st.columns(3)
@@ -2429,7 +2424,7 @@ elif menu == "🏪 Producto Terminado":
 
     df_spt[['Estado', 'Color']] = df_spt.apply(lambda r: pd.Series(alerta_pt(r)), axis=1)
 
-    # Métricas
+    # Metricas
     en_peligro = (df_spt['Estado'] == "🔴 PELIGRO").sum()
     en_aviso   = (df_spt['Estado'] == "🟡 AVISO").sum()
     mp1, mp2, mp3, mp4 = st.columns(4)
@@ -2599,7 +2594,7 @@ elif menu == "🏭 Planificación Producción":
 # ══════════════════════════════════════════════
 elif menu == "🧠 Logística AI":
     st.header("🧠 Logística AI")
-    st.caption("Agente inteligente con memoria semántica — llama-3.3-70b-versatile")
+    st.caption("Agente inteligente con memoria semántica - llama-3.3-70b-versatile")
 
     # ── Inicializar ChromaDB ──────────────────
     @st.cache_resource
@@ -2731,11 +2726,11 @@ elif menu == "🧠 Logística AI":
         # Preguntas rápidas
         st.subheader("💡 Preguntas rápidas")
         preguntas = [
-            "¿Qué referencias están en peligro hoy?",
-            "¿Qué fabricamos esta noche?",
-            "¿Qué etiquetas necesito pedir?",
+            "¿Que referencias están en peligro hoy?",
+            "¿Que fabricamos esta noche?",
+            "¿Que etiquetas necesito pedir?",
             "Dame un resumen del estado del inventario",
-            "¿Qué productos son obsoletos?",
+            "¿Que productos son obsoletos?",
         ]
         cols_p = st.columns(len(preguntas))
         for i, (col_p, preg) in enumerate(zip(cols_p, preguntas)):
@@ -2900,9 +2895,9 @@ DATOS RELEVANTES ADICIONALES (búsqueda semántica):
 INSTRUCCIONES:
 - Responde siempre en español, de forma concisa y práctica
 - Usa los datos reales para responder con precisión
-- Para paletizaciones: palet = 1200x800mm, altura máx ~2000mm. Bandejas: LxA en cm→mm (*10), alto en mm. Envases en mm
+- Para paletizaciones: palet = 1200 x 800 mm, altura max 2000 mm. Bandejas: LxA en cm multiplicado x 10 = mm, alto en mm. Envases en mm
 - Para calcular si una bandeja cabe en un envase: usa SIEMPRE las dimensiones INTERIORES del envase, que están en la columna "dimensiones interiores (mm)" del archivo "Paletizacion"
-- Las dimensiones de todos los envases (IFCO, EUROPOOL, etc.) están en el archivo "Paletizacion" — búscalas ahí siempre
+- Las dimensiones de todos los envases (IFCO, EUROPOOL, etc.) están en el archivo "Paletizacion" - búscalas ahí siempre
 - Las bandejas SIEMPRE se colocan una encima de otra y una al lado de la otra. El cálculo correcto es: (largo_interior/largo_bandeja) x (ancho_interior/ancho_bandeja) x (alto_interior/alto_bandeja), redondeando hacia abajo en cada dimensión
 - Nunca uses cálculo de volumen para paletizaciones, siempre usa dimensiones individuales
 - Las dimensiones exteriores del envase NO se usan para calcular cuántas bandejas caben, solo las interiores
@@ -3088,7 +3083,7 @@ INSTRUCCIONES:
                         uds_calculadas = uds_normal
                         orientacion = "→ Normal (largo×ancho)"
 
-                    st.info(f"🔄 **{orientacion}** — {uds_calculadas} uds/caja | Normal: {uds_normal} | Girada: {uds_girada} | Mixta: {uds_mixta}")
+                    st.info(f"🔄 **{orientacion}** - {uds_calculadas} uds/caja | Normal: {uds_normal} | Girada: {uds_girada} | Mixta: {uds_mixta}")
                     st.subheader("📊 Resultado en caja")
                     cc1, cc2, cc3, cc4 = st.columns(4)
                     cc1.metric("Por fila (largo)", fi_l)
