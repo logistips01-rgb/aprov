@@ -2023,7 +2023,12 @@ elif menu == "🏷️ Etiquetas":
     # ── DASHBOARD ETIQUETAS ────────────────────────────────────
     if st.session_state.df_etiquetas_final is not None:
         st.divider()
-        st.subheader("📊 Dashboard Etiquetas")
+        st.markdown("""
+<div style="margin-bottom:16px;">
+  <div style="font-size:22px;font-weight:700;color:#2C3E50;">Dashboard - Etiquetas</div>
+  <div style="font-size:12px;color:#7F8C8D;margin-top:4px;">Gestion de etiquetas | Aldelis</div>
+</div>
+""", unsafe_allow_html=True)
 
         df_etq = st.session_state.df_etiquetas_final.copy()
 
@@ -2070,9 +2075,9 @@ elif menu == "🏷️ Etiquetas":
         )
 
         # Filtros
-        col_f1, col_f2 = st.columns(2)
+        col_f1, col_f2 = st.columns([2,2])
         with col_f1:
-            filtro_etq = st.selectbox("Filtrar:", ["Todos", "🔴 Solo alertas", "🟡 Amarillo", "🟢 Solo OK"], key="fetq")
+            filtro_etq = st.selectbox("Filtrar por estado:", ["Todos", "🔴 Solo alertas", "🟡 Amarillo", "🟢 Solo OK"], key="fetq")
         with col_f2:
             buscar_etq = st.text_input("Buscar referencia:", key="betq")
 
@@ -2093,22 +2098,51 @@ elif menu == "🏷️ Etiquetas":
         total_txt_etq  = int(df_etq['Stk_TXT'].sum())
         me1, me2, me3, me4, me5, me6 = st.columns(6)
         me1.metric("Total etiquetas", len(df_etq))
-        me2.metric("🔴 Alertas", alertas_etq)
-        me3.metric("🟡 Avisos", amarillas_etq)
-        me4.metric("🟢 OK", len(df_etq) - alertas_etq - amarillas_etq)
-        me5.metric("🏭 Stk Interno", total_int_etq)
-        me6.metric("📦 Stk TXT", total_txt_etq)
+        me2.metric("Alertas", alertas_etq)
+        me3.metric("Avisos", amarillas_etq)
+        me4.metric("OK", len(df_etq) - alertas_etq - amarillas_etq)
+        me5.metric("Stk Interno", total_int_etq)
+        me6.metric("Stk TXT", total_txt_etq)
 
         cols_etq = ['Referencia', 'Descripcion', 'CDM_mes', 'Stk_Interno', 'Stk_Merca', 'Stk_TXT', 'Transito_ud', 'Pedido_ud', 'Estado']
 
-        def colorear_etq(row):
-            color = vista_etq.loc[row.name, 'Color']
-            return [f'background-color: {color}; color: white'] * len(row)
+        def render_etq_table(df_vista, cols):
+            badge_map = {
+                "#721c24": ('background:#FDEDEC;color:#C0392B;', '#E74C3C'),
+                "#856404": ('background:#FEF9E7;color:#D68910;', '#F39C12'),
+                "#155724": ('background:#EAFAF1;color:#1E8449;', '#27AE60'),
+            }
+            rows_html = ""
+            for idx, (_, row) in enumerate(df_vista.iterrows()):
+                color = row.get('Color', '#155724')
+                estado_text = str(row.get('Estado', '')).replace('🔴 ', '').replace('🟡 ', '').replace('🟢 ', '')
+                badge_style, dot_color = badge_map.get(color, badge_map["#155724"])
+                dot = f'<span style="width:5px;height:5px;border-radius:50%;background:{dot_color};display:inline-block;margin-right:4px;"></span>'
+                estado_badge = f'<span style="display:inline-flex;align-items:center;{badge_style}padding:3px 8px;border-radius:20px;font-size:10px;font-weight:600;">{dot}{estado_text}</span>'
+                row_bg = "background:#FEF9F9;" if color == "#721c24" else ("background:#FDFEFE;" if idx % 2 == 0 else "")
+                cells = ""
+                for col in cols:
+                    val = row.get(col, "")
+                    if col == 'Estado':
+                        cells += f'<td style="padding:8px 10px;">{estado_badge}</td>'
+                    elif col == 'Pedido_ud':
+                        v = int(val) if val else 0
+                        style = "font-weight:600;color:#E74C3C;" if v > 0 else "color:#aaa;"
+                        cells += f'<td style="padding:8px 10px;{style}">{v if v > 0 else "—"}</td>'
+                    elif col == 'Descripcion':
+                        cells += f'<td style="padding:8px 10px;color:#7F8C8D;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="{val}">{str(val)[:30]}</td>'
+                    elif col == 'Referencia':
+                        cells += f'<td style="padding:8px 10px;font-weight:700;color:#2C3E50;">{val}</td>'
+                    else:
+                        cells += f'<td style="padding:8px 10px;color:#555;">{val}</td>'
+                rows_html += f'<tr style="border-bottom:1px solid #F2F3F4;{row_bg}">{cells}</tr>'
 
-        st.dataframe(
-            vista_etq[cols_etq].style.apply(colorear_etq, axis=1),
-            use_container_width=True, height=500
-        )
+            col_widths = {'Referencia':'min-width:90px;', 'Descripcion':'min-width:160px;max-width:200px;', 'Estado':'min-width:160px;', 'Pedido_ud':'min-width:80px;'}
+            headers = "".join([f'<th style="padding:8px 10px;text-align:left;font-size:10px;font-weight:700;color:#5D6D7E;text-transform:uppercase;letter-spacing:0.05em;background:#F4F6F7;border-bottom:2px solid #D5D8DC;{col_widths.get(c,"")}">{c}</th>' for c in cols])
+            html = f'<div style="background:white;border-radius:10px;border:1px solid #D5D8DC;overflow:hidden;margin-top:8px;"><div style="overflow-x:auto;max-height:520px;overflow-y:auto;"><table style="width:100%;border-collapse:collapse;font-size:12px;table-layout:auto;"><thead style="position:sticky;top:0;z-index:1;"><tr>{headers}</tr></thead><tbody>{rows_html}</tbody></table></div></div>'
+            st.markdown(html, unsafe_allow_html=True)
+
+        render_etq_table(vista_etq, cols_etq)
 
         # Exportar
         import io
