@@ -211,6 +211,16 @@ st.markdown("""
   text-align: left !important;
   width: 100% !important;
 }
+[data-testid="stSidebar"] .stButton > button div {
+  text-align: left !important;
+  justify-content: flex-start !important;
+}
+[data-testid="stSidebar"] .stButton button[kind="secondary"] {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+}
 [data-testid="stSidebar"] .stButton > button:hover {
   background: rgba(255,255,255,0.07) !important;
   color: white !important;
