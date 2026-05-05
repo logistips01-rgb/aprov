@@ -865,16 +865,10 @@ if menu == "📂 Cargar Archivos":
 # ══════════════════════════════════════════════
 elif menu == "📊 Dashboard":
     # ── FICHA DETALLE DE REFERENCIA ──────────────────────────
-    # Leer desde query params si viene de click en tabla
-    qp = st.query_params
-    if 'ref' in qp and qp['ref']:
-        st.session_state.ref_detalle_bandeja = qp['ref']
-
     if st.session_state.ref_detalle_bandeja:
         ref_d = st.session_state.ref_detalle_bandeja
         if st.button("← Volver al Dashboard"):
             st.session_state.ref_detalle_bandeja = None
-            st.query_params.clear()
             st.rerun()
 
         st.markdown(f"""
@@ -1155,8 +1149,7 @@ elif menu == "📊 Dashboard":
                 elif col == 'Descripcion':
                     cells += f'<td style="padding:8px 12px;color:#999;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="{val}">{str(val)[:30]}</td>'
                 elif col == 'Referencia':
-                    link = f'<a href="?ref={val}" target="_self" style="color:#C8102E;text-decoration:none;font-weight:600;">{val}</a>'
-                    cells += f'<td style="padding:8px 12px;font-weight:500;">{link}</td>'
+                    cells += f'<td style="padding:8px 12px;font-weight:600;color:#f0f0f0;">{val}</td>'
                 else:
                     cells += f'<td style="padding:8px 12px;color:#ccc;">{val}</td>'
             rows_html += f'<tr style="border-bottom:0.5px solid rgba(255,255,255,0.06);{row_bg}">{cells}</tr>'
@@ -1187,6 +1180,20 @@ elif menu == "📊 Dashboard":
         st.markdown(html, unsafe_allow_html=True)
 
     render_dashboard_table(vista, cols_mostrar)
+
+    # --- Botones de acceso rápido a ficha detalle ---
+    st.markdown("<div style='margin-top:12px;font-size:11px;color:#666;'>Pincha una referencia para ver su ficha detalle:</div>", unsafe_allow_html=True)
+    refs_list = vista['Referencia'].tolist()
+    n_cols = 8
+    for i in range(0, len(refs_list), n_cols):
+        chunk = refs_list[i:i+n_cols]
+        btn_cols = st.columns(len(chunk))
+        for j, ref_b in enumerate(chunk):
+            color_ref = vista[vista['Referencia'] == ref_b]['Color'].values[0] if ref_b in vista['Referencia'].values else '#155724'
+            btn_style = "background:rgba(200,16,46,0.2);border:1px solid rgba(200,16,46,0.4);color:#ff8080;" if color_ref == '#721c24' else ("background:rgba(186,117,23,0.2);border:1px solid rgba(186,117,23,0.4);color:#ffb347;" if color_ref == '#856404' else "background:rgba(44,44,44,0.8);border:1px solid rgba(255,255,255,0.1);color:#ccc;")
+            if btn_cols[j].button(ref_b, key=f"det_{ref_b}", use_container_width=True):
+                st.session_state.ref_detalle_bandeja = ref_b
+                st.rerun()
 
     # --- Selector de referencia para ficha detalle ---
     st.divider()
