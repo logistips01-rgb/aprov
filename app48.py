@@ -183,6 +183,11 @@ st.markdown("""
   background: #2C3E50 !important;
   border-right: none !important;
 }
+[data-testid="stSidebar"] > div:first-child {
+  overflow-y: auto !important;
+  height: 100vh !important;
+  padding-bottom: 2rem !important;
+}
 [data-testid="stSidebar"] * { color: #BDC3C7 !important; }
 [data-testid="stSidebar"] .stMarkdown p {
   color: #5D6D7E !important;
@@ -281,7 +286,7 @@ hr { border-color: #D5D8DC !important; }
 # ─────────────────────────────────────────────
 def get_password(key, default):
     try:
-        if hasattr(st, 'secrets') and key in st.secrets._secrets:
+        if hasattr(st, 'secrets') and key in st.secrets:
             return st.secrets[key]
     except Exception:
         pass
@@ -2037,7 +2042,7 @@ elif menu == "🏷️ Etiquetas":
             st.divider()
 
         # ── LISTA DE CAMBIOS ──────────────────────────────────
-        st.markdown("### Cambios de etiqueta")
+        st.markdown("### Cambios registrados")
         cambios = cargar_cambios_fb()
 
         if not cambios:
@@ -2054,53 +2059,97 @@ elif menu == "🏷️ Etiquetas":
             alertas_arr = [c for c in cambios if c.get("estado") == "Pendiente" and c.get("fecha_arranque") and
                           0 <= (datetime.strptime(c["fecha_arranque"], "%Y-%m-%d").date() - hoy).days <= 7]
             if alertas_arr:
-                st.warning(f"Hay {len(alertas_arr)} cambio(s) con arranque en los proximos 7 dias.")
+                st.markdown(f"""
+<div style="background:#FEF9E7;border:0.5px solid #F39C12;border-radius:8px;padding:8px 12px;
+            font-size:12px;color:#856404;margin-bottom:12px;display:flex;align-items:center;gap:6px;">
+  ⏰ <b>{len(alertas_arr)} cambio(s)</b> con arranque en los próximos 7 días
+</div>""", unsafe_allow_html=True)
+
+            BADGE_CFG = {
+                "Pendiente":       ("background:#FDEDEC;color:#C0392B;", "🔴"),
+                "En preparacion":  ("background:#FEF9E7;color:#D68910;", "🟡"),
+                "Activo":          ("background:#EAFAF1;color:#1E8449;", "🟢"),
+            }
 
             for cambio in cambios_f:
                 estado = cambio.get("estado", "Pendiente")
-                dias_txt = ""
+                badge_style, badge_dot = BADGE_CFG.get(estado, ("background:#eee;color:#333;", "⚪"))
+                dias_num = None
+                fecha_color = "#2C3E50"
                 if cambio.get("fecha_arranque"):
                     try:
-                        dias = (datetime.strptime(cambio["fecha_arranque"], "%Y-%m-%d").date() - hoy).days
-                        dias_txt = f" · {dias} dias para arranque"
+                        dias_num = (datetime.strptime(cambio["fecha_arranque"], "%Y-%m-%d").date() - hoy).days
+                        if dias_num < 0:
+                            fecha_color = "#7F8C8D"
+                        elif dias_num <= 7:
+                            fecha_color = "#E74C3C"
                     except Exception:
                         pass
 
-                with st.expander(f"{cambio.get('referencia','')} | {cambio.get('motivo','')} | {estado}{dias_txt}"):
-                    ec1, ec2 = st.columns([2, 1])
-                    with ec1:
-                        st.markdown(f"**Referencia:** {cambio.get('referencia','')}")
-                        st.markdown(f"**Motivo:** {cambio.get('motivo','')}")
-                        st.markdown(f"**Descripcion:** {cambio.get('descripcion','')}")
-                        st.markdown(f"**Observaciones:** {cambio.get('observaciones','')}")
-                        st.markdown(f"**Fecha arranque:** {cambio.get('fecha_arranque','')}")
-                        st.markdown(f"**Registrado:** {cambio.get('fecha_registro','')} por {cambio.get('registrado_por','')}")
-                        if cambio.get("nota_gestion"):
-                            st.markdown(f"**Nota gestion:** {cambio.get('nota_gestion','')}")
-                    with ec2:
-                        if cambio.get("imagen_b64"):
-                            try:
-                                img_bytes = base64.b64decode(cambio["imagen_b64"])
-                                tipo = cambio.get("imagen_tipo", "image/jpeg")
-                                if "pdf" not in tipo:
-                                    st.image(img_bytes, caption="Etiqueta nueva", use_column_width=True)
-                                else:
-                                    st.download_button("Descargar PDF", img_bytes, file_name=cambio.get("imagen_nombre", "etiqueta.pdf"))
-                            except Exception:
-                                pass
-                        if ROL in ["admin", "almacen"] and estado != "Activo":
-                            nota_g = st.text_input("Nota de gestion:", key=f"nota_{cambio['id']}")
-                            nuevo_est = "En preparacion" if estado == "Pendiente" else "Activo"
-                            btn_txt = "Marcar en preparacion" if estado == "Pendiente" else "Marcar como Activo"
-                            if st.button(btn_txt, key=f"btn_{cambio['id']}"):
-                                if actualizar_estado_fb(cambio["id"], nuevo_est, nota_g):
-                                    lineas = [
-                                        f"<p>Cambio etiqueta <b>{cambio.get('referencia','')}</b> -> estado <b>{nuevo_est}</b></p>",
-                                        f"<p>Nota: {nota_g}</p>",
-                                    ]
-                                    enviar_email_cambio(f"Cambio etiqueta {cambio.get('referencia','')} -> {nuevo_est}", lineas)
-                                    st.success(f"Estado actualizado a {nuevo_est}")
-                                    st.rerun()
+                dias_badge_html = ""
+                if dias_num is not None and estado != "Activo":
+                    dias_badge_html = f'<span style="background:#FDEDEC;color:#C0392B;border-radius:4px;padding:2px 7px;font-size:11px;font-weight:600;margin-right:6px;">{dias_num}d</span>'
+
+                reg_por = {"admin": "Admin", "id": "I+D", "almacen": "Almacén"}.get(cambio.get("registrado_por",""), cambio.get("registrado_por",""))
+
+                st.markdown(f"""
+<div style="background:white;border:0.5px solid #E0E0E0;border-radius:10px;padding:14px 16px;margin-bottom:10px;box-shadow:0 1px 3px rgba(0,0,0,0.05);">
+  <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:10px;">
+    <div>
+      <div style="font-size:14px;font-weight:600;color:#2C3E50;">{cambio.get('referencia','')}</div>
+      <div style="font-size:12px;color:#7F8C8D;margin-top:2px;">{cambio.get('motivo','')} · Registrado por {reg_por} · {cambio.get('fecha_registro','')[:10]}</div>
+    </div>
+    <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
+      {dias_badge_html}
+      <span style="{badge_style}border-radius:20px;padding:3px 10px;font-size:11px;font-weight:600;">{badge_dot} {estado}</span>
+    </div>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+    <div>
+      <div style="font-size:11px;color:#7F8C8D;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:2px;">Descripción</div>
+      <div style="font-size:13px;color:#2C3E50;">{cambio.get('descripcion','—')}</div>
+    </div>
+    <div>
+      <div style="font-size:11px;color:#7F8C8D;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:2px;">Observaciones</div>
+      <div style="font-size:13px;color:#2C3E50;">{cambio.get('observaciones','—')}</div>
+    </div>
+    <div>
+      <div style="font-size:11px;color:#7F8C8D;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:2px;">Fecha arranque</div>
+      <div style="font-size:13px;font-weight:600;color:{fecha_color};">{cambio.get('fecha_arranque','—')}</div>
+    </div>
+    {'<div><div style="font-size:11px;color:#7F8C8D;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:2px;">Nota gestión</div><div style="font-size:13px;color:#2C3E50;">' + cambio.get('nota_gestion','—') + '</div></div>' if cambio.get('nota_gestion') else ''}
+  </div>
+</div>""", unsafe_allow_html=True)
+
+                col_img, col_acc = st.columns([1, 1])
+                with col_img:
+                    if cambio.get("imagen_b64"):
+                        try:
+                            img_bytes = base64.b64decode(cambio["imagen_b64"])
+                            tipo = cambio.get("imagen_tipo", "image/jpeg")
+                            if "pdf" not in tipo:
+                                st.image(img_bytes, caption=cambio.get("imagen_nombre","Etiqueta nueva"), use_column_width=True)
+                            else:
+                                st.download_button("📄 Descargar PDF", img_bytes, file_name=cambio.get("imagen_nombre", "etiqueta.pdf"), key=f"pdf_{cambio['id']}")
+                        except Exception:
+                            pass
+
+                with col_acc:
+                    if ROL in ["admin", "almacen"] and estado != "Activo":
+                        nota_g = st.text_input("Nota de gestión:", key=f"nota_{cambio['id']}", placeholder="Añadir nota...")
+                        nuevo_est = "En preparacion" if estado == "Pendiente" else "Activo"
+                        btn_txt = "Marcar en preparación" if estado == "Pendiente" else "Marcar como Activo"
+                        if st.button(btn_txt, key=f"btn_{cambio['id']}", use_container_width=True):
+                            if actualizar_estado_fb(cambio["id"], nuevo_est, nota_g):
+                                lineas = [
+                                    f"<p>Cambio etiqueta <b>{cambio.get('referencia','')}</b> → estado <b>{nuevo_est}</b></p>",
+                                    f"<p>Nota: {nota_g}</p>",
+                                ]
+                                enviar_email_cambio(f"Cambio etiqueta {cambio.get('referencia','')} → {nuevo_est}", lineas)
+                                st.success(f"Estado actualizado a {nuevo_est}")
+                                st.rerun()
+
+                st.markdown("<hr style='border:none;border-top:0.5px solid #F0F0F0;margin:4px 0 10px;'>", unsafe_allow_html=True)
 
     if tab_etq is None:
         st.stop()
