@@ -279,28 +279,52 @@ hr { border-color: #D5D8DC !important; }
 # ─────────────────────────────────────────────
 # CONTROL DE ACCESO
 # ─────────────────────────────────────────────
+def get_password(key, default):
+    try:
+        if hasattr(st, 'secrets') and key in st.secrets._secrets:
+            return st.secrets[key]
+    except Exception:
+        pass
+    return os.getenv(key, default)
+
 def check_password():
     if 'autenticado' not in st.session_state:
         st.session_state.autenticado = False
+        st.session_state.rol_usuario = None
+
     if not st.session_state.autenticado:
-        st.image("https://www.aldelis.es/wp-content/uploads/2021/03/logo-aldelis.png", width=200) if False else None
-        st.title("🔒 Aprovisionamiento Aldelis")
-        pwd = st.text_input("Contraseña:", type="password")
-        if st.button("Entrar"):
-            password_correcta = os.getenv("APP_PASSWORD", "aldelis2025")
-            try:
-                if hasattr(st, 'secrets') and 'APP_PASSWORD' in st.secrets._secrets:
-                    password_correcta = st.secrets['APP_PASSWORD']
-            except Exception:
-                pass
-            if pwd == password_correcta:
-                st.session_state.autenticado = True
-                st.rerun()
-            else:
-                st.error("Contraseña incorrecta.")
+        col1, col2, col3 = st.columns([1,1,1])
+        with col2:
+            st.markdown("""
+<div style="text-align:center;margin-bottom:24px;">
+  <div style="font-size:28px;font-weight:700;color:#2C3E50;">Aprovisionamiento Aldelis</div>
+  <div style="font-size:13px;color:#7F8C8D;margin-top:4px;">Sistema de gestion de aprovisionamiento</div>
+</div>
+""", unsafe_allow_html=True)
+            pwd = st.text_input("Contrasena:", type="password", placeholder="Introduce tu contrasena")
+            if st.button("Entrar", use_container_width=True):
+                pwd_admin   = get_password("APP_PASSWORD", "aldelis2025")
+                pwd_id      = get_password("ID_PASSWORD", "aldelis_id")
+                pwd_almacen = get_password("ALMACEN_PASSWORD", "aldelis_almacen")
+
+                if pwd == pwd_admin:
+                    st.session_state.autenticado = True
+                    st.session_state.rol_usuario = "admin"
+                    st.rerun()
+                elif pwd == pwd_id:
+                    st.session_state.autenticado = True
+                    st.session_state.rol_usuario = "id"
+                    st.rerun()
+                elif pwd == pwd_almacen:
+                    st.session_state.autenticado = True
+                    st.session_state.rol_usuario = "almacen"
+                    st.rerun()
+                else:
+                    st.error("Contrasena incorrecta.")
         st.stop()
 
 check_password()
+ROL = st.session_state.get("rol_usuario", "admin")
 
 # ─────────────────────────────────────────────
 # COLUMNAS ESPERADAS (fuente de verdad única)
@@ -693,26 +717,16 @@ st.sidebar.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-TODOS_MODULOS = [
-    "📂 Cargar Archivos",
-    "📊 Dashboard",
-    "📈 Análisis",
-    "🧠 Logística AI",
-    "🔗 Materiales",
-    "🏷️ Etiquetas",
-    "🚢 Tránsito",
-    "📋 Pedidos",
-    "🏪 Producto Terminado",
-    "🏭 Planificación Producción",
-    "🔍 Previsión y Obsoletos",
-    "🤖 Agente IA",
-]
-
-GRUPOS = {
+# Menú según rol
+GRUPOS_ADMIN = {
     "Principal": ["📂 Cargar Archivos", "📊 Dashboard", "📈 Análisis", "🧠 Logística AI"],
     "Gestión": ["🔗 Materiales", "🏷️ Etiquetas", "🚢 Tránsito", "📋 Pedidos"],
     "Producción": ["🏪 Producto Terminado", "🏭 Planificación Producción", "🔍 Previsión y Obsoletos", "🤖 Agente IA"],
 }
+GRUPOS_ID = {"Etiquetas": ["🏷️ Etiquetas"]}
+GRUPOS_ALMACEN = {"Etiquetas": ["🏷️ Etiquetas"]}
+
+GRUPOS = GRUPOS_ADMIN if ROL == "admin" else (GRUPOS_ID if ROL == "id" else GRUPOS_ALMACEN)
 
 LABELS_MENU = {
     "📂 Cargar Archivos": "Cargar Archivos",
@@ -729,6 +743,11 @@ LABELS_MENU = {
     "🤖 Agente IA": "Agente IA",
 }
 
+# Rol badge en sidebar
+rol_label = {"admin": "Admin", "id": "I+D", "almacen": "Almacen"}.get(ROL, ROL)
+rol_color = {"admin": "#E74C3C", "id": "#2980B9", "almacen": "#27AE60"}.get(ROL, "#888")
+st.sidebar.markdown(f'<div style="margin-bottom:12px;padding:6px 10px;background:rgba(255,255,255,0.06);border-radius:6px;font-size:11px;color:#BDC3C7;">Conectado como <span style="color:{rol_color};font-weight:600;">{rol_label}</span></div>', unsafe_allow_html=True)
+
 for grupo, items in GRUPOS.items():
     st.sidebar.markdown(f'<div style="font-size:9px;color:#5D6D7E;text-transform:uppercase;letter-spacing:0.1em;padding:0 6px;margin:10px 0 4px;font-weight:700;">{grupo}</div>', unsafe_allow_html=True)
     for item in items:
@@ -742,10 +761,19 @@ for grupo, items in GRUPOS.items():
                 st.rerun()
 
 if "menu_activo" not in st.session_state:
-    st.session_state["menu_activo"] = "📊 Dashboard"
+    st.session_state["menu_activo"] = "🏷️ Etiquetas" if ROL in ["id", "almacen"] else "📊 Dashboard"
 
 menu = st.session_state["menu_activo"]
-st.sidebar.markdown('<div style="margin-top:16px;font-size:10px;color:#bbb;text-align:center;">v2.0 - Aprovisionamiento Aldelis</div>', unsafe_allow_html=True)
+
+# Cerrar sesion
+st.sidebar.markdown("<br>", unsafe_allow_html=True)
+if st.sidebar.button("Cerrar sesion", key="logout", use_container_width=True):
+    st.session_state.autenticado = False
+    st.session_state.rol_usuario = None
+    st.session_state.menu_activo = None
+    st.rerun()
+
+st.sidebar.markdown('<div style="margin-top:8px;font-size:10px;color:#4a4a4a;text-align:center;">v2.0 - Aprovisionamiento Aldelis</div>', unsafe_allow_html=True)
 
 # ══════════════════════════════════════════════
 # MÓDULO 1: CARGAR ARCHIVOS
@@ -1860,6 +1888,224 @@ elif menu == "🔗 Materiales":
 elif menu == "🏷️ Etiquetas":
     st.header("🏷️ Gestión de Etiquetas")
 
+    # Tabs según rol
+    if ROL == "admin":
+        tab_etq, tab_cambios = st.tabs(["📊 Etiquetas", "🔄 Cambios de Etiqueta"])
+    else:
+        tab_cambios = st.container()
+        tab_etq = None
+
+    with tab_cambios:
+        import base64, smtplib
+        from email.mime.text import MIMEText
+        from email.mime.multipart import MIMEMultipart
+        from datetime import datetime, timedelta
+
+        EMAILS_NOTIF = ["almacenseco@aldelis.com", "dgamarra@aldelis.com", "mlorente@aldelis.com"]
+        MOTIVOS = ["Alergenos", "Normativa legal", "Rediseno", "Error", "Proveedor", "Otro"]
+        ESTADOS_COLOR = {
+            "Pendiente": ("#FDEDEC", "#C0392B"),
+            "En preparacion": ("#FEF9E7", "#D68910"),
+            "Activo": ("#EAFAF1", "#1E8449"),
+        }
+
+        def enviar_email_cambio(asunto, lineas):
+            try:
+                gmail_user = get_password("GMAIL_USER", "")
+                gmail_pass = get_password("GMAIL_APP_PASSWORD", "")
+                if not gmail_user or not gmail_pass:
+                    return False
+                cuerpo = "<br>".join(lineas)
+                msg = MIMEMultipart()
+                msg["From"] = gmail_user
+                msg["To"] = ", ".join(EMAILS_NOTIF)
+                msg["Subject"] = asunto
+                msg.attach(MIMEText(cuerpo, "html"))
+                with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
+                    server.login(gmail_user, gmail_pass)
+                    server.sendmail(gmail_user, EMAILS_NOTIF, msg.as_string())
+                return True
+            except Exception:
+                return False
+
+        def guardar_cambio_fb(data):
+            db, _ = get_firestore()
+            if db:
+                db.collection("cambios_etiqueta").add(data)
+                return True
+            return False
+
+        def cargar_cambios_fb():
+            db, _ = get_firestore()
+            if not db:
+                return []
+            try:
+                docs = db.collection("cambios_etiqueta").order_by("fecha_registro", direction="DESCENDING").stream()
+                result = []
+                for doc in docs:
+                    d = doc.to_dict()
+                    d["id"] = doc.id
+                    result.append(d)
+                return result
+            except Exception:
+                return []
+
+        def actualizar_estado_fb(doc_id, estado, nota=""):
+            db, _ = get_firestore()
+            if db:
+                upd = {"estado": estado, "fecha_gestion": datetime.now().strftime("%Y-%m-%d %H:%M")}
+                if nota:
+                    upd["nota_gestion"] = nota
+                db.collection("cambios_etiqueta").document(doc_id).update(upd)
+                return True
+            return False
+
+        hoy = datetime.now().date()
+
+        # Recordatorios automáticos
+        cambios_todos = cargar_cambios_fb()
+        for c in cambios_todos:
+            if c.get("estado") == "Pendiente" and c.get("fecha_arranque") and not c.get("recordatorio_enviado"):
+                try:
+                    f_arr = datetime.strptime(c["fecha_arranque"], "%Y-%m-%d").date()
+                    if (f_arr - hoy).days == 7:
+                        asunto = f"Recordatorio: Cambio etiqueta {c.get('referencia','')} arranca en 7 dias"
+                        lineas = [
+                            f"<h3>Recordatorio cambio de etiqueta</h3>",
+                            f"<p><b>Referencia:</b> {c.get('referencia','')}</p>",
+                            f"<p><b>Motivo:</b> {c.get('motivo','')}</p>",
+                            f"<p><b>Fecha arranque:</b> {c.get('fecha_arranque','')}</p>",
+                            f"<p style='color:red;'><b>Faltan 7 dias para el arranque.</b></p>",
+                        ]
+                        if enviar_email_cambio(asunto, lineas):
+                            db2, _ = get_firestore()
+                            if db2:
+                                db2.collection("cambios_etiqueta").document(c["id"]).update({"recordatorio_enviado": True})
+                except Exception:
+                    pass
+
+        # ── FORMULARIO NUEVO CAMBIO (I+D y Admin) ────────────
+        if ROL in ["admin", "id"]:
+            st.markdown("### Registrar nuevo cambio de etiqueta")
+            with st.form("form_cambio_etq", clear_on_submit=True):
+                cf1, cf2 = st.columns(2)
+                with cf1:
+                    refs_etq_disp = []
+                    if st.session_state.df_etiquetas_final is not None:
+                        refs_etq_disp = sorted(st.session_state.df_etiquetas_final["Referencia"].astype(str).tolist())
+                    ref_cambio = st.selectbox("Referencia etiqueta:", [""] + refs_etq_disp)
+                    motivo_c = st.selectbox("Motivo del cambio:", MOTIVOS)
+                    fecha_arranque_c = st.date_input("Fecha de arranque:")
+                with cf2:
+                    desc_cambio_c = st.text_area("Descripcion del cambio:", height=80)
+                    obs_cambio_c = st.text_area("Observaciones:", height=80)
+                    imagen_cambio_c = st.file_uploader("Imagen nueva etiqueta (opcional):", type=["jpg","jpeg","png","pdf"])
+
+                if st.form_submit_button("Registrar cambio", use_container_width=True):
+                    if not ref_cambio:
+                        st.error("Selecciona una referencia.")
+                    else:
+                        data = {
+                            "referencia": ref_cambio,
+                            "descripcion": desc_cambio_c,
+                            "motivo": motivo_c,
+                            "observaciones": obs_cambio_c,
+                            "fecha_arranque": fecha_arranque_c.strftime("%Y-%m-%d"),
+                            "fecha_registro": datetime.now().strftime("%Y-%m-%d %H:%M"),
+                            "registrado_por": ROL,
+                            "estado": "Pendiente",
+                            "recordatorio_enviado": False,
+                        }
+                        if imagen_cambio_c:
+                            data["imagen_b64"] = base64.b64encode(imagen_cambio_c.read()).decode()
+                            data["imagen_nombre"] = imagen_cambio_c.name
+                            data["imagen_tipo"] = imagen_cambio_c.type
+                        if guardar_cambio_fb(data):
+                            lineas = [
+                                f"<h3>Nuevo cambio de etiqueta registrado</h3>",
+                                f"<p><b>Referencia:</b> {ref_cambio}</p>",
+                                f"<p><b>Motivo:</b> {motivo_c}</p>",
+                                f"<p><b>Fecha arranque:</b> {fecha_arranque_c}</p>",
+                                f"<p><b>Descripcion:</b> {desc_cambio_c}</p>",
+                                f"<p><b>Observaciones:</b> {obs_cambio_c}</p>",
+                            ]
+                            enviado = enviar_email_cambio(f"NUEVO cambio etiqueta: {ref_cambio}", lineas)
+                            st.success(f"Cambio registrado. {'Email enviado.' if enviado else 'Configura GMAIL_USER y GMAIL_APP_PASSWORD para emails.'}")
+                            st.rerun()
+                        else:
+                            st.error("Error al guardar en Firebase.")
+            st.divider()
+
+        # ── LISTA DE CAMBIOS ──────────────────────────────────
+        st.markdown("### Cambios de etiqueta")
+        cambios = cargar_cambios_fb()
+
+        if not cambios:
+            st.info("No hay cambios registrados.")
+        else:
+            fc1, fc2 = st.columns(2)
+            filtro_estado_c = fc1.selectbox("Estado:", ["Todos", "Pendiente", "En preparacion", "Activo"], key="fec")
+            filtro_ref_c = fc2.text_input("Buscar referencia:", key="frc")
+
+            cambios_f = [c for c in cambios if
+                        (filtro_estado_c == "Todos" or c.get("estado") == filtro_estado_c) and
+                        (not filtro_ref_c or filtro_ref_c.upper() in c.get("referencia","").upper())]
+
+            alertas_arr = [c for c in cambios if c.get("estado") == "Pendiente" and c.get("fecha_arranque") and
+                          0 <= (datetime.strptime(c["fecha_arranque"], "%Y-%m-%d").date() - hoy).days <= 7]
+            if alertas_arr:
+                st.warning(f"Hay {len(alertas_arr)} cambio(s) con arranque en los proximos 7 dias.")
+
+            for cambio in cambios_f:
+                estado = cambio.get("estado", "Pendiente")
+                dias_txt = ""
+                if cambio.get("fecha_arranque"):
+                    try:
+                        dias = (datetime.strptime(cambio["fecha_arranque"], "%Y-%m-%d").date() - hoy).days
+                        dias_txt = f" · {dias} dias para arranque"
+                    except Exception:
+                        pass
+
+                with st.expander(f"{cambio.get('referencia','')} | {cambio.get('motivo','')} | {estado}{dias_txt}"):
+                    ec1, ec2 = st.columns([2, 1])
+                    with ec1:
+                        st.markdown(f"**Referencia:** {cambio.get('referencia','')}")
+                        st.markdown(f"**Motivo:** {cambio.get('motivo','')}")
+                        st.markdown(f"**Descripcion:** {cambio.get('descripcion','')}")
+                        st.markdown(f"**Observaciones:** {cambio.get('observaciones','')}")
+                        st.markdown(f"**Fecha arranque:** {cambio.get('fecha_arranque','')}")
+                        st.markdown(f"**Registrado:** {cambio.get('fecha_registro','')} por {cambio.get('registrado_por','')}")
+                        if cambio.get("nota_gestion"):
+                            st.markdown(f"**Nota gestion:** {cambio.get('nota_gestion','')}")
+                    with ec2:
+                        if cambio.get("imagen_b64"):
+                            try:
+                                img_bytes = base64.b64decode(cambio["imagen_b64"])
+                                tipo = cambio.get("imagen_tipo", "image/jpeg")
+                                if "pdf" not in tipo:
+                                    st.image(img_bytes, caption="Etiqueta nueva", use_column_width=True)
+                                else:
+                                    st.download_button("Descargar PDF", img_bytes, file_name=cambio.get("imagen_nombre", "etiqueta.pdf"))
+                            except Exception:
+                                pass
+                        if ROL in ["admin", "almacen"] and estado != "Activo":
+                            nota_g = st.text_input("Nota de gestion:", key=f"nota_{cambio['id']}")
+                            nuevo_est = "En preparacion" if estado == "Pendiente" else "Activo"
+                            btn_txt = "Marcar en preparacion" if estado == "Pendiente" else "Marcar como Activo"
+                            if st.button(btn_txt, key=f"btn_{cambio['id']}"):
+                                if actualizar_estado_fb(cambio["id"], nuevo_est, nota_g):
+                                    lineas = [
+                                        f"<p>Cambio etiqueta <b>{cambio.get('referencia','')}</b> -> estado <b>{nuevo_est}</b></p>",
+                                        f"<p>Nota: {nota_g}</p>",
+                                    ]
+                                    enviar_email_cambio(f"Cambio etiqueta {cambio.get('referencia','')} -> {nuevo_est}", lineas)
+                                    st.success(f"Estado actualizado a {nuevo_est}")
+                                    st.rerun()
+
+    if tab_etq is None:
+        st.stop()
+
+    # Contenido etiquetas (solo admin ve esta parte)
     COL_MAESTRO_ETQ = ['Referencia', 'Descripcion', 'Lead_time', 'Multiplicador', 'Unidades_caja', 'Esetiquetadecaja']
     COL_VENTAS      = ['Referencia', 'Unidades']
     UMBRAL_BAJA_ROT = 10000  # Unidades/mes
