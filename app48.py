@@ -1954,6 +1954,8 @@ elif menu == "🏷️ Etiquetas":
         import base64, smtplib
         from email.mime.text import MIMEText
         from email.mime.multipart import MIMEMultipart
+        from email.mime.image import MIMEImage
+        from email.mime.application import MIMEApplication
         from datetime import datetime, timedelta
 
         EMAILS_NOTIF = ["almacenseco@aldelis.com", "dgamarra@aldelis.com", "mlorente@aldelis.com"]
@@ -1965,56 +1967,102 @@ elif menu == "🏷️ Etiquetas":
         }
 
         def email_plantilla(titulo, campos, color_estado="#E74C3C"):
-            filas = "".join([
-                f"""<tr>
-                  <td style="padding:8px 12px;font-size:13px;color:#7F8C8D;font-weight:600;
-                             text-transform:uppercase;letter-spacing:0.04em;width:35%;
-                             border-bottom:1px solid #F0F0F0;">{k}</td>
-                  <td style="padding:8px 12px;font-size:13px;color:#2C3E50;
-                             border-bottom:1px solid #F0F0F0;">{v}</td>
-                </tr>"""
-                for k, v in campos.items() if v
-            ])
-            return f"""
-<!DOCTYPE html>
+            BADGE_COLORS = {
+                "#E74C3C": ("Pendiente",      "#FDEDEC", "#C0392B"),
+                "#F39C12": ("En preparación", "#FEF9E7", "#D68910"),
+                "#27AE60": ("Activo",         "#EAFAF1", "#1E8449"),
+            }
+            badge_txt, badge_bg, badge_fg = BADGE_COLORS.get(color_estado, ("", "#EEE", "#333"))
+
+            campos_html = ""
+            for k, v in campos.items():
+                if not v or v == "—":
+                    continue
+                campos_html += f"""
+            <td style="padding:0 0 14px 0;vertical-align:top;width:50%;">
+              <div style="font-size:10px;font-weight:600;color:#7F8C8D;text-transform:uppercase;
+                          letter-spacing:0.05em;margin-bottom:3px;">{k}</div>
+              <div style="font-size:13px;color:#2C3E50;">{v}</div>
+            </td>"""
+
+            # Agrupar en filas de 2 columnas
+            items = [(k, v) for k, v in campos.items() if v and v != "—"]
+            filas_html = ""
+            for i in range(0, len(items), 2):
+                par = items[i:i+2]
+                celdas = "".join([f"""
+              <td style="padding:0 12px 16px 0;vertical-align:top;width:50%;">
+                <div style="font-size:10px;font-weight:600;color:#7F8C8D;text-transform:uppercase;
+                            letter-spacing:0.05em;margin-bottom:3px;">{k}</div>
+                <div style="font-size:13px;color:#2C3E50;">{v}</div>
+              </td>""" for k, v in par])
+                if len(par) == 1:
+                    celdas += '<td style="width:50%;"></td>'
+                filas_html += f"<tr>{celdas}</tr>"
+
+            badge_html = f"""<span style="background:{badge_bg};color:{badge_fg};
+                border-radius:20px;padding:3px 10px;font-size:11px;font-weight:600;">
+                ● {badge_txt}</span>""" if badge_txt else ""
+
+            return f"""<!DOCTYPE html>
 <html>
-<body style="margin:0;padding:0;background:#F4F6F8;font-family:Arial,sans-serif;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="background:#F4F6F8;padding:32px 0;">
-    <tr><td align="center">
-      <table width="560" cellpadding="0" cellspacing="0"
-             style="background:white;border-radius:8px;overflow:hidden;
-                    box-shadow:0 2px 8px rgba(0,0,0,0.08);">
-        <!-- Cabecera -->
-        <tr>
-          <td style="background:{color_estado};padding:20px 28px;">
-            <div style="font-size:11px;color:rgba(255,255,255,0.8);
-                        text-transform:uppercase;letter-spacing:0.1em;margin-bottom:4px;">
-              Aldelis · Sistema de Aprovisionamiento
-            </div>
-            <div style="font-size:20px;font-weight:700;color:white;">{titulo}</div>
-          </td>
-        </tr>
-        <!-- Campos -->
-        <tr>
-          <td style="padding:8px 16px;">
-            <table width="100%" cellpadding="0" cellspacing="0">{filas}</table>
-          </td>
-        </tr>
-        <!-- Footer -->
-        <tr>
-          <td style="padding:16px 28px;background:#F8F9FA;border-top:1px solid #EAEAEA;">
-            <div style="font-size:11px;color:#AAA;">
-              Este mensaje ha sido generado automáticamente por el sistema de aprovisionamiento de Aldelis.
-            </div>
-          </td>
-        </tr>
-      </table>
-    </td></tr>
-  </table>
+<body style="margin:0;padding:0;background:#F0F2F5;font-family:Arial,sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#F0F2F5;padding:32px 0;">
+  <tr><td align="center">
+    <table width="560" cellpadding="0" cellspacing="0"
+           style="background:white;border-radius:10px;overflow:hidden;
+                  border:1px solid #E0E0E0;">
+
+      <!-- Cabecera roja -->
+      <tr>
+        <td style="background:#2C3E50;padding:16px 24px 12px;">
+          <div style="font-size:10px;color:rgba(255,255,255,0.5);text-transform:uppercase;
+                      letter-spacing:0.1em;margin-bottom:6px;">
+            Aldelis · Cambios de Etiqueta
+          </div>
+          <div style="display:flex;align-items:center;justify-content:space-between;">
+            <div style="font-size:18px;font-weight:700;color:white;">{titulo}</div>
+          </div>
+        </td>
+      </tr>
+
+      <!-- Badge estado -->
+      <tr>
+        <td style="background:{color_estado};padding:8px 24px;">
+          <span style="font-size:12px;font-weight:600;color:white;">
+            {badge_txt or titulo}
+          </span>
+        </td>
+      </tr>
+
+      <!-- Campos en grid 2 columnas -->
+      <tr>
+        <td style="padding:20px 24px 8px;">
+          <table width="100%" cellpadding="0" cellspacing="0">
+            {filas_html}
+          </table>
+        </td>
+      </tr>
+
+      <!-- Divider -->
+      <tr><td style="padding:0 24px;"><hr style="border:none;border-top:1px solid #F0F0F0;"></td></tr>
+
+      <!-- Footer -->
+      <tr>
+        <td style="padding:14px 24px;background:#FAFAFA;">
+          <div style="font-size:11px;color:#AAA;">
+            Generado automáticamente · Sistema de aprovisionamiento Aldelis
+          </div>
+        </td>
+      </tr>
+
+    </table>
+  </td></tr>
+</table>
 </body>
 </html>"""
 
-        def enviar_email_cambio(asunto, campos, color_estado="#E74C3C"):
+        def enviar_email_cambio(asunto, campos, color_estado="#E74C3C", cambio_data=None):
             try:
                 smtp_server = get_password("SMTP_SERVER", "")
                 smtp_port   = int(get_password("SMTP_PORT", "587"))
@@ -2022,12 +2070,40 @@ elif menu == "🏷️ Etiquetas":
                 smtp_pass   = get_password("SMTP_PASSWORD", "")
                 if not smtp_server or not smtp_user or not smtp_pass:
                     return False, "SMTP_SERVER, SMTP_USER o SMTP_PASSWORD no configurados en Secrets"
-                cuerpo = email_plantilla(asunto, campos, color_estado)
+
+                # Añadir stock al cuerpo si hay ref nueva
+                campos_email = dict(campos)
+                if cambio_data:
+                    stock = consultar_stock_ref(cambio_data.get("ref_nueva",""))
+                    if stock == "con_stock":
+                        campos_email["Stock nueva etiqueta"] = "✅ Stock disponible en almacén"
+                    elif stock == "sin_stock":
+                        campos_email["Stock nueva etiqueta"] = "❌ Sin stock"
+                    elif stock == "sin_maestro":
+                        campos_email["Stock nueva etiqueta"] = "⚠️ Sin actualizar maestro"
+
+                cuerpo = email_plantilla(asunto, campos_email, color_estado)
                 msg = MIMEMultipart()
                 msg["From"] = smtp_user
                 msg["To"] = ", ".join(EMAILS_NOTIF)
                 msg["Subject"] = asunto
                 msg.attach(MIMEText(cuerpo, "html"))
+
+                # Adjuntar imagen si existe
+                if cambio_data and cambio_data.get("imagen_b64"):
+                    try:
+                        img_bytes = base64.b64decode(cambio_data["imagen_b64"])
+                        nombre    = cambio_data.get("imagen_nombre", "etiqueta")
+                        tipo      = cambio_data.get("imagen_tipo", "image/jpeg")
+                        if "pdf" in tipo:
+                            adjunto = MIMEApplication(img_bytes, _subtype="pdf")
+                        else:
+                            adjunto = MIMEImage(img_bytes)
+                        adjunto.add_header("Content-Disposition", "attachment", filename=nombre)
+                        msg.attach(adjunto)
+                    except Exception:
+                        pass
+
                 if smtp_port == 465:
                     with smtplib.SMTP_SSL(smtp_server, smtp_port) as server:
                         server.login(smtp_user, smtp_pass)
@@ -2288,7 +2364,7 @@ elif menu == "🏷️ Etiquetas":
                                 "Observaciones": cambio.get("observaciones",""),
                             }
                             color_notif = {"Pendiente":"#E74C3C","En preparacion":"#F39C12","Activo":"#27AE60"}.get(estado,"#E74C3C")
-                            ok_mail, err_mail = enviar_email_cambio(f"Notificación cambio etiqueta: {ref}", campos_notif, color_notif)
+                            ok_mail, err_mail = enviar_email_cambio(f"Notificación cambio etiqueta: {ref}", campos_notif, color_notif, cambio)
                             if ok_mail:
                                 st.success("📧 Notificación enviada ✓")
                             else:
@@ -2311,7 +2387,7 @@ elif menu == "🏷️ Etiquetas":
                                         "Nota gestión": nota_g or "—",
                                     }
                                     color_est = {"En preparacion":"#F39C12","Activo":"#27AE60"}.get(nuevo_est,"#E74C3C")
-                                    ok_mail, err_mail = enviar_email_cambio(f"Cambio etiqueta {ref} → {nuevo_est}", campos_est, color_est)
+                                    ok_mail, err_mail = enviar_email_cambio(f"Cambio etiqueta {ref} → {nuevo_est}", campos_est, color_est, cambio)
                                     if ok_mail:
                                         st.session_state["email_feedback"] = (f"✅ Estado → {nuevo_est} · Email enviado ✓", "ok")
                                     else:
