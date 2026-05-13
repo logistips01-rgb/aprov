@@ -1964,19 +1964,63 @@ elif menu == "🏷️ Etiquetas":
             "Activo": ("#EAFAF1", "#1E8449"),
         }
 
-        def enviar_email_cambio(asunto, lineas):
+        def email_plantilla(titulo, campos, color_estado="#E74C3C"):
+            filas = "".join([
+                f"""<tr>
+                  <td style="padding:8px 12px;font-size:13px;color:#7F8C8D;font-weight:600;
+                             text-transform:uppercase;letter-spacing:0.04em;width:35%;
+                             border-bottom:1px solid #F0F0F0;">{k}</td>
+                  <td style="padding:8px 12px;font-size:13px;color:#2C3E50;
+                             border-bottom:1px solid #F0F0F0;">{v}</td>
+                </tr>"""
+                for k, v in campos.items() if v
+            ])
+            return f"""
+<!DOCTYPE html>
+<html>
+<body style="margin:0;padding:0;background:#F4F6F8;font-family:Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#F4F6F8;padding:32px 0;">
+    <tr><td align="center">
+      <table width="560" cellpadding="0" cellspacing="0"
+             style="background:white;border-radius:8px;overflow:hidden;
+                    box-shadow:0 2px 8px rgba(0,0,0,0.08);">
+        <!-- Cabecera -->
+        <tr>
+          <td style="background:{color_estado};padding:20px 28px;">
+            <div style="font-size:11px;color:rgba(255,255,255,0.8);
+                        text-transform:uppercase;letter-spacing:0.1em;margin-bottom:4px;">
+              Aldelis · Sistema de Aprovisionamiento
+            </div>
+            <div style="font-size:20px;font-weight:700;color:white;">{titulo}</div>
+          </td>
+        </tr>
+        <!-- Campos -->
+        <tr>
+          <td style="padding:8px 16px;">
+            <table width="100%" cellpadding="0" cellspacing="0">{filas}</table>
+          </td>
+        </tr>
+        <!-- Footer -->
+        <tr>
+          <td style="padding:16px 28px;background:#F8F9FA;border-top:1px solid #EAEAEA;">
+            <div style="font-size:11px;color:#AAA;">
+              Este mensaje ha sido generado automáticamente por el sistema de aprovisionamiento de Aldelis.
+            </div>
+          </td>
+        </tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>"""
+
+        def enviar_email_cambio(asunto, campos, color_estado="#E74C3C"):
             try:
                 gmail_user = get_password("GMAIL_USER", "")
                 gmail_pass = get_password("GMAIL_APP_PASSWORD", "")
                 if not gmail_user or not gmail_pass:
-                    # Diagnóstico: mostrar qué keys hay en secrets
-                    keys_disponibles = []
-                    try:
-                        keys_disponibles = list(st.secrets.keys())
-                    except Exception:
-                        pass
-                    return False, f"GMAIL_USER o GMAIL_APP_PASSWORD no encontrados. Keys en Secrets: {keys_disponibles}"
-                cuerpo = "<br>".join(lineas)
+                    return False, "GMAIL_USER o GMAIL_APP_PASSWORD no configurados en Secrets"
+                cuerpo = email_plantilla(asunto, campos, color_estado)
                 msg = MIMEMultipart()
                 msg["From"] = gmail_user
                 msg["To"] = ", ".join(EMAILS_NOTIF)
@@ -2031,14 +2075,14 @@ elif menu == "🏷️ Etiquetas":
                     f_arr = datetime.strptime(c["fecha_arranque"], "%Y-%m-%d").date()
                     if (f_arr - hoy).days == 7:
                         asunto = f"Recordatorio: Cambio etiqueta {c.get('referencia','')} arranca en 7 dias"
-                        lineas = [
-                            f"<h3>Recordatorio cambio de etiqueta</h3>",
-                            f"<p><b>Referencia:</b> {c.get('referencia','')}</p>",
-                            f"<p><b>Motivo:</b> {c.get('motivo','')}</p>",
-                            f"<p><b>Fecha arranque:</b> {c.get('fecha_arranque','')}</p>",
-                            f"<p style='color:red;'><b>Faltan 7 dias para el arranque.</b></p>",
-                        ]
-                        ok_mail, _ = enviar_email_cambio(asunto, lineas)
+                        campos_rec = {
+                            "Referencia": c.get("referencia",""),
+                            "Ref. nueva etiqueta": c.get("ref_nueva",""),
+                            "Motivo": c.get("motivo",""),
+                            "Fecha arranque": c.get("fecha_arranque",""),
+                            "⚠️ Aviso": "Faltan 7 días para el arranque",
+                        }
+                        ok_mail, _ = enviar_email_cambio(asunto, campos_rec, "#F39C12")
                         if ok_mail:
                             db2, _ = get_firestore()
                             if db2:
@@ -2085,16 +2129,16 @@ elif menu == "🏷️ Etiquetas":
                             data["imagen_nombre"] = imagen_cambio_c.name
                             data["imagen_tipo"] = imagen_cambio_c.type
                         if guardar_cambio_fb(data):
-                            lineas = [
-                                f"<h3>Nuevo cambio de etiqueta registrado</h3>",
-                                f"<p><b>Referencia actual:</b> {ref_cambio}</p>",
-                                f"<p><b>Referencia nueva:</b> {ref_nueva_c or '—'}</p>",
-                                f"<p><b>Motivo:</b> {motivo_c}</p>",
-                                f"<p><b>Fecha arranque:</b> {fecha_arranque_c}</p>",
-                                f"<p><b>Descripcion:</b> {desc_cambio_c}</p>",
-                                f"<p><b>Observaciones:</b> {obs_cambio_c}</p>",
-                            ]
-                            enviado, err_mail = enviar_email_cambio(f"NUEVO cambio etiqueta: {ref_cambio}", lineas)
+                            campos_nuevo = {
+                                "Referencia actual": ref_cambio,
+                                "Ref. nueva etiqueta": ref_nueva_c or "—",
+                                "Motivo": motivo_c,
+                                "Fecha arranque": str(fecha_arranque_c),
+                                "Descripción": desc_cambio_c,
+                                "Observaciones": obs_cambio_c,
+                                "Registrado por": ROL,
+                            }
+                            enviado, err_mail = enviar_email_cambio(f"Nuevo cambio de etiqueta: {ref_cambio}", campos_nuevo)
                             if enviado:
                                 st.success("Cambio registrado y email enviado.")
                             else:
@@ -2124,6 +2168,14 @@ elif menu == "🏷️ Etiquetas":
             stock_cols = [c for c in ["Stock_interno", "Stock_merca", "Stock_txt"] if c in fila.columns]
             total = fila[stock_cols].fillna(0).sum(axis=1).iloc[0] if stock_cols else 0
             return "con_stock" if total > 0 else "sin_stock"
+
+        # ── FEEDBACK PERSISTENTE ──────────────────────────────
+        if st.session_state.get("email_feedback"):
+            msg, tipo = st.session_state.pop("email_feedback")
+            if tipo == "ok":
+                st.success(msg)
+            else:
+                st.warning(msg)
 
         # ── LISTA DE CAMBIOS ──────────────────────────────────
         st.markdown("### Cambios registrados")
@@ -2218,17 +2270,17 @@ elif menu == "🏷️ Etiquetas":
 
                         # Botón notificación manual
                         if st.button("📧 Enviar notificación", key=f"notif_{cambio['id']}", use_container_width=True):
-                            lineas = [
-                                f"<h3>Notificación cambio de etiqueta</h3>",
-                                f"<p><b>Referencia:</b> {ref}</p>",
-                                f"<p><b>Ref. nueva:</b> {ref_nueva or '—'}</p>",
-                                f"<p><b>Motivo:</b> {motivo}</p>",
-                                f"<p><b>Estado:</b> {estado}</p>",
-                                f"<p><b>Fecha arranque:</b> {cambio.get('fecha_arranque','—')}</p>",
-                                f"<p><b>Descripción:</b> {cambio.get('descripcion','')}</p>",
-                                f"<p><b>Observaciones:</b> {cambio.get('observaciones','')}</p>",
-                            ]
-                            ok_mail, err_mail = enviar_email_cambio(f"Notificación cambio etiqueta: {ref}", lineas)
+                            campos_notif = {
+                                "Referencia": ref,
+                                "Ref. nueva etiqueta": ref_nueva or "—",
+                                "Motivo": motivo,
+                                "Estado": estado,
+                                "Fecha arranque": cambio.get("fecha_arranque","—"),
+                                "Descripción": cambio.get("descripcion",""),
+                                "Observaciones": cambio.get("observaciones",""),
+                            }
+                            color_notif = {"Pendiente":"#E74C3C","En preparacion":"#F39C12","Activo":"#27AE60"}.get(estado,"#E74C3C")
+                            ok_mail, err_mail = enviar_email_cambio(f"Notificación cambio etiqueta: {ref}", campos_notif, color_notif)
                             if ok_mail:
                                 st.success("📧 Notificación enviada ✓")
                             else:
@@ -2242,24 +2294,27 @@ elif menu == "🏷️ Etiquetas":
                             btn_txt = "▶ Marcar en preparación" if estado == "Pendiente" else "✅ Marcar como Activo"
                             if st.button(btn_txt, key=f"btn_{cambio['id']}", use_container_width=True):
                                 if actualizar_estado_fb(cambio["id"], nuevo_est, nota_g):
-                                    lineas = [
-                                        f"<p>Cambio etiqueta <b>{ref}</b> → estado <b>{nuevo_est}</b></p>",
-                                        f"<p><b>Ref. nueva:</b> {ref_nueva or '—'}</p>",
-                                        f"<p>Nota: {nota_g}</p>",
-                                    ]
-                                    ok_mail, err_mail = enviar_email_cambio(f"Cambio etiqueta {ref} → {nuevo_est}", lineas)
+                                    campos_est = {
+                                        "Referencia": ref,
+                                        "Ref. nueva etiqueta": ref_nueva or "—",
+                                        "Motivo": motivo,
+                                        "Nuevo estado": nuevo_est,
+                                        "Fecha arranque": cambio.get("fecha_arranque","—"),
+                                        "Nota gestión": nota_g or "—",
+                                    }
+                                    color_est = {"En preparacion":"#F39C12","Activo":"#27AE60"}.get(nuevo_est,"#E74C3C")
+                                    ok_mail, err_mail = enviar_email_cambio(f"Cambio etiqueta {ref} → {nuevo_est}", campos_est, color_est)
                                     if ok_mail:
-                                        st.success(f"Estado → {nuevo_est} · Email enviado ✓")
+                                        st.session_state["email_feedback"] = (f"✅ Estado → {nuevo_est} · Email enviado ✓", "ok")
                                     else:
-                                        st.success(f"Estado → {nuevo_est}")
-                                        st.warning(f"Email no enviado: {err_mail}")
+                                        st.session_state["email_feedback"] = (f"✅ Estado → {nuevo_est} · Email no enviado: {err_mail}", "warn")
                                     st.rerun()
 
                         # Botón archivar
                         if ROL in ["admin"] and estado == "Activo":
                             if st.button("📁 Archivar", key=f"arch_{cambio['id']}", use_container_width=True):
                                 if archivar_cambio_fb(cambio["id"]):
-                                    st.success("Cambio archivado.")
+                                    st.session_state["email_feedback"] = ("📁 Cambio archivado correctamente.", "ok")
                                     st.rerun()
 
         # ── ARCHIVADOS ────────────────────────────────────────
