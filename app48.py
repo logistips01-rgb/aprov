@@ -1951,14 +1951,10 @@ elif menu == "🏷️ Etiquetas":
         tab_etq = None
 
     with tab_cambios:
-        import base64, smtplib
-        from email.mime.text import MIMEText
-        from email.mime.multipart import MIMEMultipart
-        from email.mime.image import MIMEImage
-        from email.mime.application import MIMEApplication
+        import base64
         from datetime import datetime, timedelta
 
-        EMAILS_NOTIF = ["almacenseco@aldelis.com", "dgamarra@aldelis.com", "mlorente@aldelis.com"]
+        EMAILS_NOTIF = ["mlorente@aldelis.com"]
         MOTIVOS = ["Alergenos", "Normativa legal", "Rediseno", "Error", "Proveedor", "Otro"]
         ESTADOS_COLOR = {
             "Pendiente": ("#FDEDEC", "#C0392B"),
@@ -2064,17 +2060,21 @@ elif menu == "🏷️ Etiquetas":
 
         def enviar_email_cambio(asunto, campos, color_estado="#E74C3C", cambio_data=None):
             try:
-                smtp_server = get_password("SMTP_SERVER", "")
-                smtp_port   = int(get_password("SMTP_PORT", "587"))
-                smtp_user   = get_password("SMTP_USER", "")
-                smtp_pass   = get_password("SMTP_PASSWORD", "")
-                if not smtp_server or not smtp_user or not smtp_pass:
-                    return False, "SMTP_SERVER, SMTP_USER o SMTP_PASSWORD no configurados en Secrets"
+                import smtplib
+                from email.mime.text import MIMEText
+                from email.mime.multipart import MIMEMultipart
+                from email.mime.image import MIMEImage
+                from email.mime.application import MIMEApplication
+
+                gmail_user = get_password("GMAIL_USER", "")
+                gmail_pass = get_password("GMAIL_APP_PASSWORD", "")
+                if not gmail_user or not gmail_pass:
+                    return False, "GMAIL_USER o GMAIL_APP_PASSWORD no configurados en Secrets"
 
                 # Añadir stock al cuerpo si hay ref nueva
                 campos_email = dict(campos)
                 if cambio_data:
-                    stock = consultar_stock_ref(cambio_data.get("ref_nueva",""))
+                    stock = consultar_stock_ref(cambio_data.get("ref_nueva", ""))
                     if stock == "con_stock":
                         campos_email["Stock nueva etiqueta"] = "✅ Stock disponible en almacén"
                     elif stock == "sin_stock":
@@ -2084,7 +2084,7 @@ elif menu == "🏷️ Etiquetas":
 
                 cuerpo = email_plantilla(asunto, campos_email, color_estado)
                 msg = MIMEMultipart()
-                msg["From"] = smtp_user
+                msg["From"] = gmail_user
                 msg["To"] = ", ".join(EMAILS_NOTIF)
                 msg["Subject"] = asunto
                 msg.attach(MIMEText(cuerpo, "html"))
@@ -2093,8 +2093,8 @@ elif menu == "🏷️ Etiquetas":
                 if cambio_data and cambio_data.get("imagen_b64"):
                     try:
                         img_bytes = base64.b64decode(cambio_data["imagen_b64"])
-                        nombre    = cambio_data.get("imagen_nombre", "etiqueta")
-                        tipo      = cambio_data.get("imagen_tipo", "image/jpeg")
+                        nombre = cambio_data.get("imagen_nombre", "etiqueta")
+                        tipo = cambio_data.get("imagen_tipo", "image/jpeg")
                         if "pdf" in tipo:
                             adjunto = MIMEApplication(img_bytes, _subtype="pdf")
                         else:
@@ -2104,15 +2104,10 @@ elif menu == "🏷️ Etiquetas":
                     except Exception:
                         pass
 
-                if smtp_port == 465:
-                    with smtplib.SMTP_SSL(smtp_server, smtp_port) as server:
-                        server.login(smtp_user, smtp_pass)
-                        server.sendmail(smtp_user, EMAILS_NOTIF, msg.as_string())
-                else:
-                    with smtplib.SMTP(smtp_server, smtp_port) as server:
-                        server.starttls()
-                        server.login(smtp_user, smtp_pass)
-                        server.sendmail(smtp_user, EMAILS_NOTIF, msg.as_string())
+                with smtplib.SMTP("smtp.gmail.com", 587) as server:
+                    server.starttls()
+                    server.login(gmail_user, gmail_pass)
+                    server.sendmail(gmail_user, EMAILS_NOTIF, msg.as_string())
                 return True, None
             except Exception as e:
                 return False, str(e)
