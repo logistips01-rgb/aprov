@@ -1969,7 +1969,13 @@ elif menu == "🏷️ Etiquetas":
                 gmail_user = get_password("GMAIL_USER", "")
                 gmail_pass = get_password("GMAIL_APP_PASSWORD", "")
                 if not gmail_user or not gmail_pass:
-                    return False, "GMAIL_USER o GMAIL_APP_PASSWORD no configurados en Secrets"
+                    # Diagnóstico: mostrar qué keys hay en secrets
+                    keys_disponibles = []
+                    try:
+                        keys_disponibles = list(st.secrets.keys())
+                    except Exception:
+                        pass
+                    return False, f"GMAIL_USER o GMAIL_APP_PASSWORD no encontrados. Keys en Secrets: {keys_disponibles}"
                 cuerpo = "<br>".join(lineas)
                 msg = MIMEMultipart()
                 msg["From"] = gmail_user
