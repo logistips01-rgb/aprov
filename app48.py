@@ -2016,19 +2016,27 @@ elif menu == "🏷️ Etiquetas":
 
         def enviar_email_cambio(asunto, campos, color_estado="#E74C3C"):
             try:
-                gmail_user = get_password("GMAIL_USER", "")
-                gmail_pass = get_password("GMAIL_APP_PASSWORD", "")
-                if not gmail_user or not gmail_pass:
-                    return False, "GMAIL_USER o GMAIL_APP_PASSWORD no configurados en Secrets"
+                smtp_server = get_password("SMTP_SERVER", "")
+                smtp_port   = int(get_password("SMTP_PORT", "587"))
+                smtp_user   = get_password("SMTP_USER", "")
+                smtp_pass   = get_password("SMTP_PASSWORD", "")
+                if not smtp_server or not smtp_user or not smtp_pass:
+                    return False, "SMTP_SERVER, SMTP_USER o SMTP_PASSWORD no configurados en Secrets"
                 cuerpo = email_plantilla(asunto, campos, color_estado)
                 msg = MIMEMultipart()
-                msg["From"] = gmail_user
+                msg["From"] = smtp_user
                 msg["To"] = ", ".join(EMAILS_NOTIF)
                 msg["Subject"] = asunto
                 msg.attach(MIMEText(cuerpo, "html"))
-                with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
-                    server.login(gmail_user, gmail_pass)
-                    server.sendmail(gmail_user, EMAILS_NOTIF, msg.as_string())
+                if smtp_port == 465:
+                    with smtplib.SMTP_SSL(smtp_server, smtp_port) as server:
+                        server.login(smtp_user, smtp_pass)
+                        server.sendmail(smtp_user, EMAILS_NOTIF, msg.as_string())
+                else:
+                    with smtplib.SMTP(smtp_server, smtp_port) as server:
+                        server.starttls()
+                        server.login(smtp_user, smtp_pass)
+                        server.sendmail(smtp_user, EMAILS_NOTIF, msg.as_string())
                 return True, None
             except Exception as e:
                 return False, str(e)
