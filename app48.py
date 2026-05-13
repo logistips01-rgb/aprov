@@ -2261,6 +2261,12 @@ elif menu == "🏷️ Etiquetas":
         cambios_todos = cargar_cambios_fb()
         cambios = [c for c in cambios_todos if not c.get("archivado")]
 
+        BADGE_MD = {
+            "Pendiente":      "🔴 Pendiente",
+            "En preparacion": "🟡 En preparación",
+            "Activo":         "🟢 Activo",
+        }
+
         if not cambios:
             st.info("No hay cambios activos registrados.")
         else:
@@ -2276,12 +2282,6 @@ elif menu == "🏷️ Etiquetas":
                           0 <= (datetime.strptime(c["fecha_arranque"], "%Y-%m-%d").date() - hoy).days <= 7]
             if alertas_arr:
                 st.warning(f"⏰ {len(alertas_arr)} cambio(s) con arranque en los próximos 7 días")
-
-            BADGE_MD = {
-                "Pendiente":      "🔴 Pendiente",
-                "En preparacion": "🟡 En preparación",
-                "Activo":         "🟢 Activo",
-            }
 
             for cambio in cambios_f:
                 estado   = cambio.get("estado", "Pendiente")
