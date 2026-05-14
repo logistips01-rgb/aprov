@@ -761,39 +761,39 @@ def columnas_faltantes(df, requeridas, nombre_archivo):
 def exportar_excel_prof(df, sheet_name="Datos", color_col=None):
     """Genera un BytesIO con Excel de diseño profesional Aldelis."""
     import io
-    from openpyxl.styles import PatternFill, Font, Alignment, Border, Side, GradientFill
+    from openpyxl.styles import PatternFill, Font, Alignment, Border, Side
     from openpyxl.utils import get_column_letter
 
-    # Mapa de colores para columna Estado
+    # Estado → (fondo celda, texto celda, color borde izq fila)
     ESTADO_COLORS = {
-        "Pendiente":        ("FFFDEDEC", "FFC0392B"),
-        "Urgente":          ("FFFDEDEC", "FFC0392B"),
-        "Crítico":          ("FFFDEDEC", "FFC0392B"),
-        "En preparacion":   ("FFFFF8E8", "FFD68910"),
-        "En Curso":         ("FFFFF8E8", "FFD68910"),
-        "Activo":           ("FFEAFAF1", "FF1E8449"),
-        "OK":               ("FFEAFAF1", "FF1E8449"),
-        "Sin stock":        ("FFFDEDEC", "FFC0392B"),
-        "Bajo stock":       ("FFFFF8E8", "FFD68910"),
-        "Con stock":        ("FFEAFAF1", "FF1E8449"),
+        "Pendiente":      ("FFE8B4B8", "FF7B241C", "FFC0392B"),
+        "Urgente":        ("FFE8B4B8", "FF7B241C", "FFC0392B"),
+        "Crítico":        ("FFE8B4B8", "FF7B241C", "FFC0392B"),
+        "Sin stock":      ("FFE8B4B8", "FF7B241C", "FFC0392B"),
+        "En preparacion": ("FFFDE8A0", "FF7D6608", "FFD4AC0D"),
+        "En Curso":       ("FFFDE8A0", "FF7D6608", "FFD4AC0D"),
+        "Bajo stock":     ("FFFDE8A0", "FF7D6608", "FFD4AC0D"),
+        "Activo":         ("FFABEBC6", "FF1A5E38", "FF27AE60"),
+        "OK":             ("FFABEBC6", "FF1A5E38", "FF27AE60"),
+        "Con stock":      ("FFABEBC6", "FF1A5E38", "FF27AE60"),
     }
-    # Mapa de colores RGB usados en la app (col Color)
+    # Color de fila (col Color hex app) → (fondo fila, texto fila, borde izq)
     APP_COLOR_MAP = {
-        "#721c24": ("FFFDEDEC", "FF721C24"),
-        "#856404": ("FFFFF8E8", "FF856404"),
-        "#155724": ("FFEAFAF1", "FF155724"),
-        "#FDEDEC": ("FFFDEDEC", "FFC0392B"),
-        "#FEF9E7": ("FFFFF8E8", "FFD68910"),
-        "#EAFAF1": ("FFEAFAF1", "FF1E8449"),
+        "#721c24": ("FFFCE4E6", "FF7B241C", "FFC0392B"),
+        "#856404": ("FFFEF4CC", "FF7D6608", "FFD4AC0D"),
+        "#155724": ("FFD6F0E0", "FF1A5E38", "FF27AE60"),
+        "#FDEDEC": ("FFFCE4E6", "FF7B241C", "FFC0392B"),
+        "#FEF9E7": ("FFFEF4CC", "FF7D6608", "FFD4AC0D"),
+        "#EAFAF1": ("FFD6F0E0", "FF1A5E38", "FF27AE60"),
     }
 
-    HDR_BG   = "FF2C3E50"
-    HDR_FG   = "FFFFFFFF"
-    ROW_ALT  = "FFF7F8FA"
-    ROW_EVEN = "FFFFFFFF"
+    HDR_BG       = "FF2C3E50"
+    HDR_FG       = "FFFFFFFF"
+    ROW_ALT      = "FFF7F8FA"
+    ROW_EVEN     = "FFFFFFFF"
     BORDER_COLOR = "FFD5D8DC"
 
-    thin = Side(style="thin", color=BORDER_COLOR)
+    thin   = Side(style="thin",   color=BORDER_COLOR)
     border = Border(left=thin, right=thin, top=thin, bottom=thin)
 
     output = io.BytesIO()
@@ -802,53 +802,51 @@ def exportar_excel_prof(df, sheet_name="Datos", color_col=None):
         ws = writer.sheets[sheet_name]
 
         # Cabecera
-        for col_idx, cell in enumerate(ws[1], start=1):
-            cell.fill    = PatternFill("solid", fgColor=HDR_BG)
-            cell.font    = Font(bold=True, color=HDR_FG, size=10)
+        for cell in ws[1]:
+            cell.fill      = PatternFill("solid", fgColor=HDR_BG)
+            cell.font      = Font(bold=True, color=HDR_FG, size=10)
             cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
-            cell.border  = border
+            cell.border    = border
         ws.row_dimensions[1].height = 22
 
-        # Filas de datos
         cols = df.columns.tolist()
-        estado_idx = None
-        color_idx  = None
-        if "Estado" in cols:
-            estado_idx = cols.index("Estado") + 1
-        if color_col and color_col in cols:
-            color_idx = cols.index(color_col) + 1
+        estado_idx = cols.index("Estado") + 1 if "Estado" in cols else None
+        color_idx  = cols.index(color_col) + 1 if color_col and color_col in cols else None
 
         for row_idx, row in enumerate(ws.iter_rows(min_row=2, max_row=ws.max_row), start=2):
-            bg = ROW_ALT if row_idx % 2 == 0 else ROW_EVEN
+            bg           = ROW_ALT if row_idx % 2 == 0 else ROW_EVEN
             fill_default = PatternFill("solid", fgColor=bg)
             font_default = Font(size=10)
 
-            # Color de fila por columna Color (hex app)
-            row_fill = None
-            row_font = None
+            # Determinar color de estado de la fila
+            row_color_triple = None
             if color_idx:
-                raw = str(df.iloc[row_idx - 2, color_idx - 1]) if color_idx <= len(cols) else ""
-                mapped = APP_COLOR_MAP.get(raw)
-                if mapped:
-                    row_fill = PatternFill("solid", fgColor=mapped[0])
-                    row_font = Font(size=10, color=mapped[1], bold=True)
+                raw = str(df.iloc[row_idx - 2, color_idx - 1])
+                row_color_triple = APP_COLOR_MAP.get(raw)
+            if not row_color_triple and estado_idx:
+                estado_val = str(df.iloc[row_idx - 2, estado_idx - 1])
+                row_color_triple = ESTADO_COLORS.get(estado_val)
+
+            # Borde izquierdo coloreado si hay estado
+            if row_color_triple:
+                accent = Side(style="medium", color=row_color_triple[2])
+                border_accent = Border(left=accent, right=thin, top=thin, bottom=thin)
+            else:
+                border_accent = border
 
             for cell in row:
-                cell.fill   = row_fill or fill_default
-                cell.font   = row_font or font_default
-                cell.border = border
+                cell.fill      = PatternFill("solid", fgColor=row_color_triple[0]) if row_color_triple else fill_default
+                cell.font      = Font(size=10, color=row_color_triple[1]) if row_color_triple else font_default
+                cell.border    = border_accent
                 cell.alignment = Alignment(vertical="center")
 
-            # Colorear celda Estado individualmente (si hay col Color no sobreescribir)
-            if estado_idx and not row_fill:
-                estado_val = str(df.iloc[row_idx - 2, estado_idx - 1])
-                mapped = ESTADO_COLORS.get(estado_val)
-                if mapped:
-                    cell_e = ws.cell(row=row_idx, column=estado_idx)
-                    cell_e.fill = PatternFill("solid", fgColor=mapped[0])
-                    cell_e.font = Font(size=10, color=mapped[1], bold=True)
+            # Celda Estado: fondo más marcado con texto bold
+            if estado_idx and row_color_triple:
+                cell_e       = ws.cell(row=row_idx, column=estado_idx)
+                cell_e.fill  = PatternFill("solid", fgColor=row_color_triple[0])
+                cell_e.font  = Font(size=10, color=row_color_triple[1], bold=True)
 
-        # Anchos de columna automáticos
+        # Anchos automáticos
         for col_idx, col_cells in enumerate(ws.columns, start=1):
             max_len = max(
                 (len(str(c.value)) if c.value is not None else 0 for c in col_cells),
