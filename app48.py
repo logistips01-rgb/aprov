@@ -764,28 +764,32 @@ def exportar_excel_prof(df, sheet_name="Datos", color_col=None):
     from openpyxl.styles import PatternFill, Font, Alignment, Border, Side
     from openpyxl.utils import get_column_letter
 
-    # Estado → (fondo celda, texto celda, color borde izq fila)
-    ESTADO_COLORS = {
-        "Pendiente":      ("FFE8B4B8", "FF7B241C", "FFC0392B"),
-        "Urgente":        ("FFE8B4B8", "FF7B241C", "FFC0392B"),
-        "Crítico":        ("FFE8B4B8", "FF7B241C", "FFC0392B"),
-        "Sin stock":      ("FFE8B4B8", "FF7B241C", "FFC0392B"),
-        "En preparacion": ("FFFDE8A0", "FF7D6608", "FFD4AC0D"),
-        "En Curso":       ("FFFDE8A0", "FF7D6608", "FFD4AC0D"),
-        "Bajo stock":     ("FFFDE8A0", "FF7D6608", "FFD4AC0D"),
-        "Activo":         ("FFABEBC6", "FF1A5E38", "FF27AE60"),
-        "OK":             ("FFABEBC6", "FF1A5E38", "FF27AE60"),
-        "Con stock":      ("FFABEBC6", "FF1A5E38", "FF27AE60"),
-    }
-    # Color de fila (col Color hex app) → (fondo fila, texto fila, borde izq)
+    # (fondo fila, texto fila, color borde izq)
+    ROJO    = ("FFFCE4E6", "FF7B241C", "FFC0392B")
+    AMARILLO= ("FFFEF4CC", "FF7D6608", "FFD4AC0D")
+    VERDE   = ("FFD6F0E0", "FF1A5E38", "FF27AE60")
+
+    # Colores hex app → triple
     APP_COLOR_MAP = {
-        "#721c24": ("FFFCE4E6", "FF7B241C", "FFC0392B"),
-        "#856404": ("FFFEF4CC", "FF7D6608", "FFD4AC0D"),
-        "#155724": ("FFD6F0E0", "FF1A5E38", "FF27AE60"),
-        "#FDEDEC": ("FFFCE4E6", "FF7B241C", "FFC0392B"),
-        "#FEF9E7": ("FFFEF4CC", "FF7D6608", "FFD4AC0D"),
-        "#EAFAF1": ("FFD6F0E0", "FF1A5E38", "FF27AE60"),
+        "#721c24": ROJO,    "#FDEDEC": ROJO,
+        "#856404": AMARILLO,"#FEF9E7": AMARILLO,
+        "#155724": VERDE,   "#EAFAF1": VERDE,
     }
+
+    def triple_para_valor(val):
+        """Devuelve triple de color según emoji prefix o texto exacto."""
+        s = str(val)
+        if s.startswith("🔴"):  return ROJO
+        if s.startswith("🟡"):  return AMARILLO
+        if s.startswith("🟢"):  return VERDE
+        # textos sin emoji
+        if any(k in s for k in ("Pendiente","Urgente","Crítico","Sin stock","PELIGRO","FALTA")):
+            return ROJO
+        if any(k in s for k in ("preparacion","En Curso","Bajo stock","AVISO")):
+            return AMARILLO
+        if any(k in s for k in ("Activo","OK","Con stock")):
+            return VERDE
+        return None
 
     HDR_BG       = "FF2C3E50"
     HDR_FG       = "FFFFFFFF"
@@ -796,9 +800,21 @@ def exportar_excel_prof(df, sheet_name="Datos", color_col=None):
     thin   = Side(style="thin",   color=BORDER_COLOR)
     border = Border(left=thin, right=thin, top=thin, bottom=thin)
 
+    # Auto-detectar columna Color si existe y no se pasó
+    cols_df = df.columns.tolist()
+    if not color_col and "Color" in cols_df:
+        color_col = "Color"
+
+    # Exportar sin columna Color (es interna, no interesa en el archivo)
+    cols_export = [c for c in cols_df if c != "Color"]
+    df_exp = df[cols_export].copy()
+
+    estado_idx = cols_export.index("Estado") + 1 if "Estado" in cols_export else None
+    color_src  = df[color_col].tolist() if color_col and color_col in cols_df else None
+
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine="openpyxl") as writer:
-        df.to_excel(writer, index=False, sheet_name=sheet_name)
+        df_exp.to_excel(writer, index=False, sheet_name=sheet_name)
         ws = writer.sheets[sheet_name]
 
         # Cabecera
@@ -809,42 +825,33 @@ def exportar_excel_prof(df, sheet_name="Datos", color_col=None):
             cell.border    = border
         ws.row_dimensions[1].height = 22
 
-        cols = df.columns.tolist()
-        estado_idx = cols.index("Estado") + 1 if "Estado" in cols else None
-        color_idx  = cols.index(color_col) + 1 if color_col and color_col in cols else None
-
         for row_idx, row in enumerate(ws.iter_rows(min_row=2, max_row=ws.max_row), start=2):
+            i = row_idx - 2  # índice dataframe
+
+            # Determinar triple de color: primero col Color, luego col Estado
+            triple = None
+            if color_src:
+                triple = APP_COLOR_MAP.get(str(color_src[i]))
+            if not triple and estado_idx:
+                triple = triple_para_valor(df_exp.iloc[i, estado_idx - 1])
+
             bg           = ROW_ALT if row_idx % 2 == 0 else ROW_EVEN
             fill_default = PatternFill("solid", fgColor=bg)
             font_default = Font(size=10)
 
-            # Determinar color de estado de la fila
-            row_color_triple = None
-            if color_idx:
-                raw = str(df.iloc[row_idx - 2, color_idx - 1])
-                row_color_triple = APP_COLOR_MAP.get(raw)
-            if not row_color_triple and estado_idx:
-                estado_val = str(df.iloc[row_idx - 2, estado_idx - 1])
-                row_color_triple = ESTADO_COLORS.get(estado_val)
-
-            # Borde izquierdo coloreado si hay estado
-            if row_color_triple:
-                accent = Side(style="medium", color=row_color_triple[2])
-                border_accent = Border(left=accent, right=thin, top=thin, bottom=thin)
-            else:
-                border_accent = border
+            accent = Side(style="medium", color=triple[2]) if triple else thin
+            borde_fila = Border(left=accent, right=thin, top=thin, bottom=thin)
 
             for cell in row:
-                cell.fill      = PatternFill("solid", fgColor=row_color_triple[0]) if row_color_triple else fill_default
-                cell.font      = Font(size=10, color=row_color_triple[1]) if row_color_triple else font_default
-                cell.border    = border_accent
+                cell.fill      = PatternFill("solid", fgColor=triple[0]) if triple else fill_default
+                cell.font      = Font(size=10, color=triple[1]) if triple else font_default
+                cell.border    = borde_fila
                 cell.alignment = Alignment(vertical="center")
 
-            # Celda Estado: fondo más marcado con texto bold
-            if estado_idx and row_color_triple:
-                cell_e       = ws.cell(row=row_idx, column=estado_idx)
-                cell_e.fill  = PatternFill("solid", fgColor=row_color_triple[0])
-                cell_e.font  = Font(size=10, color=row_color_triple[1], bold=True)
+            # Celda Estado en negrita
+            if estado_idx and triple:
+                ce = ws.cell(row=row_idx, column=estado_idx)
+                ce.font = Font(size=10, color=triple[1], bold=True)
 
         # Anchos automáticos
         for col_idx, col_cells in enumerate(ws.columns, start=1):
