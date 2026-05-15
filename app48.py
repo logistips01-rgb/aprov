@@ -3440,7 +3440,7 @@ elif menu == "🏭 Planificación Producción":
 # ══════════════════════════════════════════════
 elif menu == "🧠 Logística AI":
     st.header("🧠 Logística AI")
-    st.caption("Agente inteligente con memoria semántica - llama-3.3-70b-versatile")
+    st.caption("Agente inteligente con memoria semántica · Claude Sonnet / Llama 3.3 70B")
 
     # ── Inicializar ChromaDB ──────────────────
     @st.cache_resource
@@ -3569,6 +3569,15 @@ elif menu == "🧠 Logística AI":
 
     # ── Chat principal ────────────────────────
     with col_main:
+        # Selector de modelo
+        MODELOS_AI = {
+            "🟣 Claude Sonnet (Anthropic)": "claude",
+            "🟡 Llama 3.3 70B (Groq)":     "groq",
+        }
+        modelo_sel = st.radio("Modelo IA:", list(MODELOS_AI.keys()),
+                              horizontal=True, key="logistica_modelo")
+        motor_ai = MODELOS_AI[modelo_sel]
+        st.caption("Claude: análisis profundo · Groq: respuesta rápida")
         # Preguntas rápidas
         st.subheader("💡 Preguntas rápidas")
         preguntas = [
@@ -3599,7 +3608,6 @@ elif menu == "🧠 Logística AI":
             with st.chat_message("assistant"):
                 with st.spinner("Analizando..."):
                     try:
-                        from groq import Groq as GroqClient
                         contexto = buscar_contexto_ai(pregunta_actual)
                         archivos_lista = ", ".join(st.session_state.logistica_archivos.keys()) or "ninguno aún"
 
@@ -3751,17 +3759,49 @@ INSTRUCCIONES:
 - Si cruzas datos de varios archivos, explícalo brevemente
 - Si no encuentras la info, dilo claramente"""
 
-                        groq_client = GroqClient(api_key=GROQ_API_KEY)
-                        mensajes = [{"role": "system", "content": system_prompt}]
-                        mensajes += st.session_state.logistica_historial[-10:]
+                        mensajes_hist = st.session_state.logistica_historial[-10:]
 
-                        resp = groq_client.chat.completions.create(
-                            model="llama-3.3-70b-versatile",
-                            messages=mensajes,
-                            max_tokens=1500,
-                            temperature=0.3
-                        )
-                        respuesta = resp.choices[0].message.content
+                        if motor_ai == "claude":
+                            ANTHROPIC_KEY = get_password("ANTHROPIC_API_KEY", "")
+                            if not ANTHROPIC_KEY:
+                                st.warning("❌ ANTHROPIC_API_KEY no configurada en Secrets")
+                                st.stop()
+                            import urllib.request, json as _json
+                            ant_msgs = [{"role": m["role"], "content": m["content"]}
+                                        for m in mensajes_hist if isinstance(m.get("content"), str)]
+                            if ant_msgs and ant_msgs[0]["role"] != "user":
+                                ant_msgs = ant_msgs[1:]
+                            payload = _json.dumps({
+                                "model": "claude-sonnet-4-6",
+                                "max_tokens": 2048,
+                                "system": system_prompt,
+                                "messages": ant_msgs,
+                            }).encode()
+                            req = urllib.request.Request(
+                                "https://api.anthropic.com/v1/messages",
+                                data=payload,
+                                headers={
+                                    "x-api-key": ANTHROPIC_KEY,
+                                    "anthropic-version": "2023-06-01",
+                                    "content-type": "application/json",
+                                },
+                                method="POST"
+                            )
+                            with urllib.request.urlopen(req) as r:
+                                respuesta = _json.loads(r.read())["content"][0]["text"]
+                        else:
+                            from groq import Groq as GroqClient
+                            groq_client = GroqClient(api_key=GROQ_API_KEY)
+                            mensajes = [{"role": "system", "content": system_prompt}]
+                            mensajes += mensajes_hist
+                            resp = groq_client.chat.completions.create(
+                                model="llama-3.3-70b-versatile",
+                                messages=mensajes,
+                                max_tokens=1500,
+                                temperature=0.3
+                            )
+                            respuesta = resp.choices[0].message.content
+
                         st.write(respuesta)
                         st.session_state.logistica_historial.append({"role": "assistant", "content": respuesta})
                     except Exception as e:
