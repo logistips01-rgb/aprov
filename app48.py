@@ -414,70 +414,56 @@ if 'df_consumos' not in st.session_state:
 
 # ── Carga automática desde Firebase al arrancar ──────────────
 if not st.session_state.firebase_cargado:
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
+    # Todas las lecturas declaradas: (session_key, coleccion, doc_id)
+    _CARGAS = [
+        ("df_final",           "bandejas",          "df_final"),
+        ("df_consumos",        "bandejas",           "df_consumos"),
+        ("df_transito",        "bandejas",           "df_transito"),
+        ("df_transito2",       "bandejas",           "df_transito2"),
+        ("df_materiales",      "materiales",         "df_materiales"),
+        ("df_etiquetas_final", "etiquetas",          "df_etiquetas_final"),
+        ("df_ventas",          "etiquetas",          "df_ventas"),
+        ("df_transito_etq",    "etiquetas",          "df_transito_etq"),
+        ("df_envase",          "etiquetas",          "df_envase"),
+        ("df_pedidos",         "pedidos",            "df_pedidos"),
+        ("df_planificacion",   "planificacion",      "df_planificacion"),
+        ("df_paletizacion",    "logistica",          "df_paletizacion"),
+        ("df_stock_pt",        "producto_terminado", "df_stock_pt"),
+        ("df_produccion_pt",   "producto_terminado", "df_produccion_pt"),
+        ("df_plan_produccion", "producto_terminado", "df_plan_produccion"),
+    ]
+
     _fb_errores = []
-    try:
-        df_fb, err = firebase_a_df('bandejas', 'df_final')
-        if df_fb is not None:
-            st.session_state.df_final = df_fb
-        elif err and err not in ("No existe",) and not err.startswith('[{'):
-            _fb_errores.append(f"bandejas/df_final: {err}")
-        df_cons_fb, err = firebase_a_df('bandejas', 'df_consumos')
-        if df_cons_fb is not None:
-            df_cons_fb['Fecha'] = pd.to_datetime(df_cons_fb['Fecha'], errors='coerce')
-            st.session_state.df_consumos = df_cons_fb
-        df_mat_fb, _ = firebase_a_df('materiales', 'df_materiales')
-        if df_mat_fb is not None:
-            st.session_state.df_materiales = df_mat_fb
-        df_etq_fb, _ = firebase_a_df('etiquetas', 'df_etiquetas_final')
-        if df_etq_fb is not None:
-            st.session_state.df_etiquetas_final = df_etq_fb
-        df_vent_fb, _ = firebase_a_df('etiquetas', 'df_ventas')
-        if df_vent_fb is not None:
-            st.session_state.df_ventas = df_vent_fb
+    _resultados = {}
 
-        # Tránsitos
-        for key, coleccion in [
-            ('df_transito',     'bandejas'),
-            ('df_transito2',    'bandejas'),
-            ('df_transito_etq', 'etiquetas'),
-        ]:
-            df_t_fb, _ = firebase_a_df(coleccion, key)
-            if df_t_fb is not None:
-                st.session_state[key] = df_t_fb
+    with st.spinner("Cargando datos..."):
+        with ThreadPoolExecutor(max_workers=8) as executor:
+            futures = {
+                executor.submit(firebase_a_df, col, doc): key
+                for key, col, doc in _CARGAS
+            }
+            for future in as_completed(futures):
+                key = futures[future]
+                try:
+                    df_r, err = future.result()
+                    _resultados[key] = (df_r, err)
+                except Exception as e:
+                    _resultados[key] = (None, str(e))
 
-        # Pedidos
-        df_ped_fb, _ = firebase_a_df('pedidos', 'df_pedidos')
-        if df_ped_fb is not None:
-            df_ped_fb['Fecha_entrega'] = pd.to_datetime(df_ped_fb['Fecha_entrega'], errors='coerce')
-            st.session_state.df_pedidos = df_ped_fb
+    # Aplicar resultados al session_state con postprocesado donde sea necesario
+    for key, col, doc in _CARGAS:
+        df_r, err = _resultados.get(key, (None, None))
+        if df_r is not None:
+            if key == "df_consumos":
+                df_r["Fecha"] = pd.to_datetime(df_r["Fecha"], errors="coerce")
+            elif key == "df_pedidos":
+                df_r["Fecha_entrega"] = pd.to_datetime(df_r["Fecha_entrega"], errors="coerce")
+            st.session_state[key] = df_r
+        elif err and err not in ("No existe",) and not err.startswith("[{"):
+            _fb_errores.append(f"{doc}: {err}")
 
-        # Planificación
-        df_plan_fb, _ = firebase_a_df('planificacion', 'df_planificacion')
-        if df_plan_fb is not None:
-            st.session_state.df_planificacion = df_plan_fb
-
-        # Paletización
-        df_pal_fb, _ = firebase_a_df('logistica', 'df_paletizacion')
-        if df_pal_fb is not None:
-            st.session_state.df_paletizacion = df_pal_fb
-
-        # Producto Terminado
-        df_spt_fb, _ = firebase_a_df('producto_terminado', 'df_stock_pt')
-        if df_spt_fb is not None:
-            st.session_state.df_stock_pt = df_spt_fb
-        df_ppt_fb, _ = firebase_a_df('producto_terminado', 'df_produccion_pt')
-        if df_ppt_fb is not None:
-            st.session_state.df_produccion_pt = df_ppt_fb
-        df_pp_fb, _ = firebase_a_df('producto_terminado', 'df_plan_produccion')
-        if df_pp_fb is not None:
-            st.session_state.df_plan_produccion = df_pp_fb
-
-        # Envase (etiquetas de caja)
-        df_env_fb, _ = firebase_a_df('etiquetas', 'df_envase')
-        if df_env_fb is not None:
-            st.session_state.df_envase = df_env_fb
-    except Exception as e:
-        _fb_errores.append(str(e))
     if _fb_errores:
         st.sidebar.warning(f"⚠️ Firebase: {'; '.join(_fb_errores)}")
     elif st.session_state.df_final is not None:
@@ -2241,10 +2227,13 @@ elif menu == "🏷️ Etiquetas":
                 return True
             return False
 
-        def obtener_stock_cantidad(ref):
-            if not ref or st.session_state.df_etiquetas_final is None:
+        def obtener_stock_cantidad(ref, tipo="Etiqueta"):
+            if tipo == "Bandeja":
+                df = st.session_state.get("df_final")
+            else:
+                df = st.session_state.df_etiquetas_final
+            if not ref or df is None:
                 return None
-            df = st.session_state.df_etiquetas_final
             fila = df[df["Referencia"].astype(str).str.upper() == str(ref).strip().upper()]
             if fila.empty:
                 return None
@@ -2279,14 +2268,34 @@ elif menu == "🏷️ Etiquetas":
         # ── FORMULARIO NUEVO CAMBIO (I+D y Admin) ────────────
         if ROL in ["admin", "id"]:
             st.markdown("### Registrar nuevo cambio")
+
+            # Tipo fuera del form para que el selectbox de refs se actualice al cambiar
+            tipo_c = st.radio("Tipo de material:", ["Etiqueta", "Bandeja"],
+                              horizontal=True, key="tipo_cambio_radio")
+
             with st.form("form_cambio_etq", clear_on_submit=True):
-                tipo_c = st.radio("Tipo de material:", ["Etiqueta", "Bandeja"], horizontal=True)
                 cf1, cf2 = st.columns(2)
                 with cf1:
-                    refs_etq_disp = []
-                    if st.session_state.df_etiquetas_final is not None:
-                        refs_etq_disp = sorted(st.session_state.df_etiquetas_final["Referencia"].astype(str).tolist())
-                    ref_cambio = st.selectbox("Referencia actual:", [""] + refs_etq_disp)
+                    # Referencias según tipo seleccionado
+                    refs_disp = []
+                    if tipo_c == "Etiqueta" and st.session_state.df_etiquetas_final is not None:
+                        refs_disp = sorted(st.session_state.df_etiquetas_final["Referencia"].astype(str).tolist())
+                    elif tipo_c == "Bandeja" and st.session_state.get("df_final") is not None:
+                        refs_band = set(st.session_state.df_final["Referencia"].astype(str).tolist())
+                        # Filtrar solo bandejas que aparecen en el archivo de componentes
+                        df_mat_s = st.session_state.get("df_materiales")
+                        if df_mat_s is not None and "Codigo" in df_mat_s.columns:
+                            codigos_comp = set(df_mat_s["Codigo"].astype(str).str.strip().str.upper())
+                            refs_disp = sorted([r for r in refs_band if str(r).strip().upper() in codigos_comp])
+                        else:
+                            refs_disp = sorted(refs_band)
+                    ref_cambio = st.selectbox("Referencia actual:", [""] + refs_disp)
+                    if ref_cambio:
+                        _df_desc = st.session_state.df_etiquetas_final if tipo_c == "Etiqueta" else st.session_state.get("df_final")
+                        if _df_desc is not None and "Descripcion" in _df_desc.columns:
+                            _fila = _df_desc[_df_desc["Referencia"].astype(str) == ref_cambio]
+                            if not _fila.empty:
+                                st.caption(f"📋 {_fila.iloc[0]['Descripcion']}")
                     ref_nueva_c = st.text_input("Referencia nueva:", placeholder="Ej: C12044")
                     motivo_c = st.selectbox("Motivo del cambio:", MOTIVOS)
                     agotar_stock_c = st.checkbox("Agotar stock primero (sin fecha fija)")
@@ -2436,7 +2445,7 @@ elif menu == "🏷️ Etiquetas":
                         if agotar:
                             st.markdown("**Arranque:** Agotar stock primero")
                             # Pista de stock actual de la ref. actual
-                            stock_act = obtener_stock_cantidad(ref)
+                            stock_act = obtener_stock_cantidad(ref, tipo_label)
                             if stock_act is not None:
                                 st.caption(f"📦 Stock actual ref. actual: **{stock_act:,} ud**")
                             # Fecha primera producción
