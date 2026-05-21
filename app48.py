@@ -384,7 +384,8 @@ ROL = st.session_state.get("rol_usuario", "admin")
 # ─────────────────────────────────────────────
 # COLUMNAS ESPERADAS (fuente de verdad única)
 # ─────────────────────────────────────────────
-COL_MAESTRO   = ['Referencia', 'Descripcion', 'Lead_time', 'Stock_seguridad', 'Unidades_palet', 'Incremento']
+COL_MAESTRO        = ['Referencia', 'Descripcion', 'Lead_time', 'Stock_seguridad', 'Unidades_palet', 'Incremento']
+COL_MAESTRO_OPT    = ['Situacion']   # columnas opcionales del maestro
 COL_STOCK     = ['Referencia', 'Almacen', 'Cantidad']
 COL_CONSUMOS  = ['Referencia', 'Fecha', 'Cantidad']
 
@@ -752,6 +753,7 @@ def normalizar_columnas(df):
         'stock_seguridad': 'Stock_seguridad',
         'unidades_palet':  'Unidades_palet',
         'incremento':      'Incremento',
+        'situacion':       'Situacion',
         'almacen':         'Almacen',
         'cantidad':        'Cantidad',
         'fecha':           'Fecha',
@@ -1092,7 +1094,8 @@ if menu == "📂 Cargar Archivos":
         st.write(f"CDM resultado: {c12_cdm['Cdm'].values}")
 
         # --- Quedarse solo con las columnas necesarias del Maestro ---
-        m = m[COL_MAESTRO]
+        cols_m = COL_MAESTRO + [c for c in COL_MAESTRO_OPT if c in m.columns]
+        m = m[cols_m]
 
         # --- Unión: solo referencias presentes en Maestro Y Stock ---
         final = pd.merge(m, res_stock, on='Referencia', how='inner')
@@ -1255,6 +1258,10 @@ elif menu == "📊 Dashboard":
     df['En_transito2'] = df['En_transito2'].fillna(0)
     if 'Stock_avitrans' not in df.columns:
         df['Stock_avitrans'] = 0
+    if 'Situacion' not in df.columns:
+        df['Situacion'] = 'ACTIVA'
+    else:
+        df['Situacion'] = df['Situacion'].astype(str).str.strip().str.upper().replace('NAN', 'ACTIVA').fillna('ACTIVA')
 
     # --- Calcular palets y alerta ---
     def calcular_alerta(row):
@@ -1263,6 +1270,7 @@ elif menu == "📊 Dashboard":
         seg        = row['Stock_seguridad']   # ya en palets
         cdm        = row['Cdm']               # ya en palets/día
         incremento = row.get('Incremento', 0) or 0
+        situacion  = row.get('Situacion', 'ACTIVA')
 
         pal_int       = round(row['Stock_interno']         / u_p)
         pal_merca     = round(row['Stock_merca']           / u_p)
@@ -1273,15 +1281,17 @@ elif menu == "📊 Dashboard":
         seg_pal       = round(seg)
         cdm_pal       = math.ceil(cdm)
 
-        # Stock disponible cuando llegue el nuevo pedido:
-        # interno + tránsitos (llegan hoy) - consumo durante lead_time
+        # MERCA: stock operativo = Merca (ARENTO + CAMARA BANDEJAS F19)
+        # ACTIVA/BAJA: stock operativo = Interno (AL6 + AL6 SGA)
+        stock_op = pal_merca if situacion == 'MERCA' else pal_int
+
         necesidad_bruta = cdm * lead
-        stock_final = pal_int + pal_transito + pal_transito2 - necesidad_bruta
+        stock_final = stock_op + pal_transito + pal_transito2 - necesidad_bruta
 
         # Alerta: no llegamos al stock de seguridad
         if stock_final < seg:
             pedido = math.ceil(seg - stock_final + incremento)
-            dias_stock_actual = (pal_int / cdm) if cdm > 0 else 999
+            dias_stock_actual = (stock_op / cdm) if cdm > 0 else 999
             if dias_stock_actual < lead:
                 return pal_int, pal_merca, pal_txt, pal_avitrans, pal_transito, pal_transito2, seg_pal, cdm_pal, f"🔴 COMPRAR: {pedido} Pal.", "#721c24"
             else:
@@ -1299,9 +1309,9 @@ elif menu == "📊 Dashboard":
         lambda row: pd.Series(calcular_alerta(row)), axis=1
     )
 
-    # --- Días de cobertura (stock total / CDM) ---
+    # --- Días de cobertura (stock operativo / CDM) ---
     df['Dias_stock'] = df.apply(
-        lambda r: round(r['Pal_Interno'] / r['CDM_pal'])
+        lambda r: round((r['Pal_Merca'] if r['Situacion'] == 'MERCA' else r['Pal_Interno']) / r['CDM_pal'])
         if r['CDM_pal'] > 0 else 999, axis=1
     )
 
@@ -1327,17 +1337,24 @@ elif menu == "📊 Dashboard":
         pass
 
     # --- Filtros rápidos ---
-    col1, col2 = st.columns(2)
+    col1, col2, col3 = st.columns(3)
     with col1:
-        filtro = st.selectbox("Filtrar por estado:", ["Todos", "🔴 Solo alertas", "🟢 Solo OK"])
+        filtro = st.selectbox("Filtrar por estado:", ["Todos", "🔴 Solo alertas", "🟡 Amarillo", "🟢 Solo OK"])
     with col2:
         buscar = st.text_input("Buscar referencia:")
+    with col3:
+        mostrar_bajas = st.checkbox("Mostrar referencias BAJA", value=False)
 
     vista = df.copy()
+    # Ocultar BAJA por defecto
+    if not mostrar_bajas:
+        vista = vista[vista['Situacion'] != 'BAJA']
     if filtro == "🔴 Solo alertas":
         vista = vista[vista['Estado'].str.startswith("🔴")]
+    elif filtro == "🟡 Amarillo":
+        vista = vista[vista['Estado'].str.startswith("🟡")]
     elif filtro == "🟢 Solo OK":
-        vista = vista[vista['Estado'] == "🟢 OK"]
+        vista = vista[vista['Estado'].str.startswith("🟢")]
     if buscar:
         vista = vista[vista['Referencia'].str.contains(buscar, case=False, na=False)]
 
