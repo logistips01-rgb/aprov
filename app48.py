@@ -446,6 +446,7 @@ if not st.session_state.firebase_cargado:
         ("df_ventas",          "etiquetas",          "df_ventas"),
         ("df_transito_etq",    "etiquetas",          "df_transito_etq"),
         ("df_envase",          "etiquetas",          "df_envase"),
+        ("df_stock_erp",       "stock",              "df_stock_erp"),
         ("df_pedidos",         "pedidos",            "df_pedidos"),
         ("df_planificacion",   "planificacion",      "df_planificacion"),
         ("df_paletizacion",    "logistica",          "df_paletizacion"),
@@ -994,6 +995,13 @@ if menu == "📂 Cargar Archivos":
         s = normalizar_columnas(s)
         c = normalizar_columnas(c)
 
+        # --- Preprocesar stock ERP (renombra Ubicacion→Almacen y filtra) ---
+        s = preprocesar_stock_erp(s)
+
+        # --- Guardar stock ERP compartido para etiquetas ---
+        st.session_state.df_stock_erp = s.copy()
+        df_a_firebase(s, 'stock', 'df_stock_erp')
+
         # --- Validar columnas ---
         errores = (
             columnas_faltantes(m, COL_MAESTRO,  "Maestro") +
@@ -1011,7 +1019,6 @@ if menu == "📂 Cargar Archivos":
         s['Almacen'] = s['Almacen'].astype(str).str.strip()
         s['Cantidad'] = pd.to_numeric(s['Cantidad'], errors='coerce').fillna(0)
 
-        s = preprocesar_stock_erp(s)
         res_stock = (
             s.groupby('Referencia')
              .apply(lambda g: pd.Series({
@@ -2604,7 +2611,12 @@ elif menu == "🏷️ Etiquetas":
         f_vent = st.file_uploader("2. Ventas del mes (.xlsx)", type="xlsx", key="vent")
         st.caption("Columnas: Referencia, Unidades (acumulado mensual)")
     with col_c3:
-        f_setq = st.file_uploader("3. Stock Actual (.xlsx)", type="xlsx", key="setq")
+        if st.session_state.get("df_stock_erp") is not None:
+            st.success("✅ Stock ERP cargado desde Cargar Archivos")
+            f_setq = None
+        else:
+            f_setq = st.file_uploader("3. Stock Actual (.xlsx)", type="xlsx", key="setq")
+            st.caption("O súbelo en Cargar Archivos y se compartirá aquí automáticamente")
     with col_c4:
         f_env = st.file_uploader("4. Etiquetas por envase (.xlsx)", type="xlsx", key="fenv")
         st.caption("Columnas: Referencia, Etiquetas_envase")
@@ -2620,13 +2632,18 @@ elif menu == "🏷️ Etiquetas":
                     st.success(f"✅ {len(df_env_up)} referencias de envase guardadas.")
 
     if st.button("🚀 Sincronizar Etiquetas"):
-        if not (f_metq and f_vent and f_setq):
-            st.error("Sube los 3 archivos.")
+        _stock_erp = st.session_state.get("df_stock_erp")
+        _stock_disponible = f_setq is not None or _stock_erp is not None
+        if not (f_metq and f_vent and _stock_disponible):
+            st.error("Sube Maestro y Ventas. El stock se coge de Cargar Archivos o súbelo aquí.")
             st.stop()
 
-        m_etq  = leer_excel(f_metq,  "Maestro Etiquetas")
-        ventas = leer_excel(f_vent,  "Ventas")
-        s_etq  = leer_excel(f_setq,  "Stock Etiquetas")
+        m_etq  = leer_excel(f_metq, "Maestro Etiquetas")
+        ventas = leer_excel(f_vent, "Ventas")
+        if f_setq:
+            s_etq = leer_excel(f_setq, "Stock Etiquetas")
+        else:
+            s_etq = _stock_erp.copy()
         if m_etq is None or ventas is None or s_etq is None:
             st.stop()
 
@@ -2716,7 +2733,7 @@ elif menu == "🏷️ Etiquetas":
         # ── UNIÓN FINAL ────────────────────────────────────────
         final_etq = pd.merge(m_etq, res_stock_etq, on='Referencia', how='left')
         final_etq = pd.merge(final_etq, consumo_mes, on='Referencia', how='left')
-        for col in ['Consumo_mes', 'Stock_interno', 'Stock_merca', 'Stock_txt']:
+        for col in ['Consumo_mes', 'Stock_interno', 'Stock_merca', 'Stock_txt', 'Stock_avitrans']:
             final_etq[col] = pd.to_numeric(final_etq[col], errors='coerce').fillna(0)
 
         st.session_state.df_etiquetas_final = final_etq
@@ -2775,6 +2792,8 @@ elif menu == "🏷️ Etiquetas":
 
         if 'Stock_avitrans' not in df_etq.columns:
             df_etq['Stock_avitrans'] = 0
+        else:
+            df_etq['Stock_avitrans'] = pd.to_numeric(df_etq['Stock_avitrans'], errors='coerce').fillna(0)
 
         def alerta_etq(row):
             consumo_mes  = row.get('Consumo_mes', 0)
