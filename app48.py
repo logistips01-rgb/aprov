@@ -388,9 +388,28 @@ COL_MAESTRO   = ['Referencia', 'Descripcion', 'Lead_time', 'Stock_seguridad', 'U
 COL_STOCK     = ['Referencia', 'Almacen', 'Cantidad']
 COL_CONSUMOS  = ['Referencia', 'Fecha', 'Cantidad']
 
-ALMACENES_INT   = {'AL6', 'AL6SGA', 'AL6 SGA'}
-ALMACENES_MERCA = {'ARENTO', 'CAMARA BANDEJAS F19'}
-ALMACENES_TXT   = {'TXT'}
+ALMACENES_INT      = {'AL6', 'AL6SGA', 'AL6 SGA'}
+ALMACENES_MERCA    = {'ARENTO', 'CAMARA BANDEJAS F19'}
+ALMACENES_TXT      = {'TXT'}
+ALMACENES_AVITRANS = {'AVITRANS'}
+
+# Almacenes válidos en el archivo ERP (columna Ubicacion)
+ALMACENES_VALIDOS  = ALMACENES_INT | ALMACENES_MERCA | ALMACENES_TXT | ALMACENES_AVITRANS
+
+def preprocesar_stock_erp(df):
+    """Adapta el archivo de stock del ERP al formato estándar de la app.
+    Renombra Ubicacion → Almacen, filtra almacenes relevantes y
+    conserva solo las columnas necesarias."""
+    df = df.copy()
+    # Si viene del ERP tiene 'Ubicacion' en lugar de 'Almacen'
+    if 'Ubicacion' in df.columns and 'Almacen' not in df.columns:
+        df = df.rename(columns={'Ubicacion': 'Almacen'})
+    if 'Almacen' not in df.columns or 'Referencia' not in df.columns:
+        return df
+    df['Almacen'] = df['Almacen'].astype(str).str.strip()
+    df = df[df['Almacen'].isin(ALMACENES_VALIDOS)]
+    cols = [c for c in ['Referencia', 'Almacen', 'Cantidad'] if c in df.columns]
+    return df[cols]
 
 # ─────────────────────────────────────────────
 # SESSION STATE
@@ -870,8 +889,8 @@ st.sidebar.markdown("""
 # Menú según rol
 GRUPOS_ADMIN = {
     "Principal": ["📂 Cargar Archivos", "📊 Dashboard", "📈 Análisis", "🧠 Logística AI"],
-    "Gestión": ["🔗 Materiales", "🏷️ Etiquetas", "🚢 Tránsito", "📋 Pedidos"],
-    "Producción": ["🏪 Producto Terminado", "🏭 Planificación Producción", "🔍 Previsión y Obsoletos", "🤖 Agente IA"],
+    "Gestión": ["🔗 Materiales", "🏷️ Etiquetas", "🚢 Tránsito"],
+    "Producción": ["🔍 Previsión y Obsoletos"],
 }
 GRUPOS_ID = {"Etiquetas": ["🏷️ Etiquetas"]}
 GRUPOS_ALMACEN = {"Etiquetas": ["🏷️ Etiquetas"]}
@@ -992,12 +1011,14 @@ if menu == "📂 Cargar Archivos":
         s['Almacen'] = s['Almacen'].astype(str).str.strip()
         s['Cantidad'] = pd.to_numeric(s['Cantidad'], errors='coerce').fillna(0)
 
+        s = preprocesar_stock_erp(s)
         res_stock = (
             s.groupby('Referencia')
              .apply(lambda g: pd.Series({
-                 'Stock_interno': g.loc[g['Almacen'].isin(ALMACENES_INT),   'Cantidad'].sum(),
-                 'Stock_merca':   g.loc[g['Almacen'].isin(ALMACENES_MERCA), 'Cantidad'].sum(),
-                 'Stock_txt':     g.loc[g['Almacen'].isin(ALMACENES_TXT),   'Cantidad'].sum(),
+                 'Stock_interno':  g.loc[g['Almacen'].isin(ALMACENES_INT),      'Cantidad'].sum(),
+                 'Stock_merca':    g.loc[g['Almacen'].isin(ALMACENES_MERCA),    'Cantidad'].sum(),
+                 'Stock_txt':      g.loc[g['Almacen'].isin(ALMACENES_TXT),      'Cantidad'].sum(),
+                 'Stock_avitrans': g.loc[g['Almacen'].isin(ALMACENES_AVITRANS), 'Cantidad'].sum(),
              }))
              .reset_index()
         )
@@ -2629,14 +2650,15 @@ elif menu == "🏷️ Etiquetas":
         m_etq['Esetiquetadecaja'] = m_etq['Esetiquetadecaja'].astype(str).str.strip().str.lower().fillna('')
 
         # ── STOCK ─────────────────────────────────────────────
-        s_etq['Almacen']  = s_etq['Almacen'].astype(str).str.strip()
+        s_etq = preprocesar_stock_erp(s_etq)
         s_etq['Cantidad'] = pd.to_numeric(s_etq['Cantidad'], errors='coerce').fillna(0)
         res_stock_etq = (
             s_etq.groupby('Referencia')
              .apply(lambda g: pd.Series({
-                 'Stock_interno': g.loc[g['Almacen'].isin(ALMACENES_INT),   'Cantidad'].sum(),
-                 'Stock_merca':   g.loc[g['Almacen'].isin(ALMACENES_MERCA), 'Cantidad'].sum(),
-                 'Stock_txt':     g.loc[g['Almacen'].isin(ALMACENES_TXT),   'Cantidad'].sum(),
+                 'Stock_interno':  g.loc[g['Almacen'].isin(ALMACENES_INT),      'Cantidad'].sum(),
+                 'Stock_merca':    g.loc[g['Almacen'].isin(ALMACENES_MERCA),    'Cantidad'].sum(),
+                 'Stock_txt':      g.loc[g['Almacen'].isin(ALMACENES_TXT),      'Cantidad'].sum(),
+                 'Stock_avitrans': g.loc[g['Almacen'].isin(ALMACENES_AVITRANS), 'Cantidad'].sum(),
              }))
              .reset_index()
         )
@@ -2751,9 +2773,12 @@ elif menu == "🏷️ Etiquetas":
         df_etq = df_etq.merge(t_etq, on='Referencia', how='left')
         df_etq['En_transito'] = df_etq['En_transito'].fillna(0)
 
+        if 'Stock_avitrans' not in df_etq.columns:
+            df_etq['Stock_avitrans'] = 0
+
         def alerta_etq(row):
             consumo_mes  = row.get('Consumo_mes', 0)
-            stock_total  = row['Stock_interno'] + row['Stock_merca'] + row['Stock_txt'] + row['En_transito']
+            stock_total  = row['Stock_interno'] + row['Stock_merca'] + row['Stock_txt'] + row.get('Stock_avitrans', 0) + row['En_transito']
             transito_ud  = int(row['En_transito'])
             consumo_2sem = consumo_mes / 2  # Lead time = 2 semanas
 
@@ -2770,17 +2795,18 @@ elif menu == "🏷️ Etiquetas":
                 pedido = math.ceil(stock_objetivo - stock_total + consumo_2sem)
                 estado_base = f"COMPRAR: {int(pedido)} Ud."
                 # Rojo si stock < 2 semanas, amarillo si no
+                avit = int(row.get('Stock_avitrans', 0))
                 if stock_total < consumo_2sem:
-                    return int(stock_total), int(row['Stock_interno']), int(row['Stock_merca']), int(row['Stock_txt']), transito_ud, int(consumo_mes), int(pedido), f"🔴 {estado_base}", "#721c24"
+                    return int(stock_total), int(row['Stock_interno']), int(row['Stock_merca']), int(row['Stock_txt']), avit, transito_ud, int(consumo_mes), int(pedido), f"🔴 {estado_base}", "#721c24"
                 else:
-                    return int(stock_total), int(row['Stock_interno']), int(row['Stock_merca']), int(row['Stock_txt']), transito_ud, int(consumo_mes), int(pedido), f"🟡 {estado_base}", "#856404"
+                    return int(stock_total), int(row['Stock_interno']), int(row['Stock_merca']), int(row['Stock_txt']), avit, transito_ud, int(consumo_mes), int(pedido), f"🟡 {estado_base}", "#856404"
 
             msg = "🟢 OK"
             if transito_ud > 0:
                 msg += f" (🚢 {transito_ud} en tránsito)"
-            return int(stock_total), int(row['Stock_interno']), int(row['Stock_merca']), int(row['Stock_txt']), transito_ud, int(consumo_mes), 0, msg, "#155724"
+            return int(stock_total), int(row['Stock_interno']), int(row['Stock_merca']), int(row['Stock_txt']), int(row.get('Stock_avitrans', 0)), transito_ud, int(consumo_mes), 0, msg, "#155724"
 
-        df_etq[['Stock_total', 'Stk_Interno', 'Stk_Merca', 'Stk_TXT', 'Transito_ud', 'CDM_mes', 'Pedido_ud', 'Estado', 'Color']] = df_etq.apply(
+        df_etq[['Stock_total', 'Stk_Interno', 'Stk_Merca', 'Stk_TXT', 'Stk_Avitrans', 'Transito_ud', 'CDM_mes', 'Pedido_ud', 'Estado', 'Color']] = df_etq.apply(
             lambda row: pd.Series(alerta_etq(row)), axis=1
         )
 
@@ -2814,7 +2840,7 @@ elif menu == "🏷️ Etiquetas":
         me5.metric("Stk Interno", total_int_etq)
         me6.metric("Stk TXT", total_txt_etq)
 
-        cols_etq = ['Referencia', 'Descripcion', 'CDM_mes', 'Stk_Interno', 'Stk_Merca', 'Stk_TXT', 'Transito_ud', 'Pedido_ud', 'Estado']
+        cols_etq = ['Referencia', 'Descripcion', 'CDM_mes', 'Stk_Interno', 'Stk_Merca', 'Stk_TXT', 'Stk_Avitrans', 'Transito_ud', 'Pedido_ud', 'Estado']
 
         def render_etq_table(df_vista, cols):
             badge_map = {
@@ -3477,7 +3503,42 @@ elif menu == "🧠 Logística AI":
         coleccion_ai.add(documents=chunks, ids=ids, metadatas=metadatas)
         return len(chunks)
 
-    def buscar_contexto_ai(pregunta, n=20):
+    def construir_contexto_firebase():
+        """Vuelca todos los dataframes de session_state en texto para Claude."""
+        bloques = []
+
+        def df_a_texto(df, nombre, max_filas=2000):
+            if df is None or df.empty:
+                return ""
+            df2 = df.copy().head(max_filas)
+            lineas = [f"=== {nombre} ({len(df)} filas) ==="]
+            lineas.append(", ".join(df2.columns.tolist()))
+            for _, row in df2.iterrows():
+                lineas.append(" | ".join(
+                    f"{col}={val}" for col, val in row.items()
+                    if pd.notna(val) and str(val).strip() not in ("", "nan", "None")
+                ))
+            return "\n".join(lineas)
+
+        mapeo = [
+            (st.session_state.get("df_final"),           "Maestro Bandejas",        2000),
+            (st.session_state.get("df_etiquetas_final"),  "Maestro Etiquetas",       2000),
+            (st.session_state.get("df_materiales"),       "Componentes",             3000),
+            (st.session_state.get("df_paletizacion"),     "Paletizacion",             200),
+            (st.session_state.get("df_stock_pt"),         "Stock Producto Terminado", 500),
+            (st.session_state.get("df_produccion_pt"),    "Produccion PT",            500),
+            (st.session_state.get("df_ventas"),           "Ventas",                  1000),
+            (st.session_state.get("df_consumos"),         "Consumos",                 500),
+            (st.session_state.get("df_planificacion"),    "Planificacion",            500),
+        ]
+        for df, nombre, max_f in mapeo:
+            bloque = df_a_texto(df, nombre, max_f)
+            if bloque:
+                bloques.append(bloque)
+
+        return "\n\n".join(bloques) if bloques else "No hay datos cargados en Firebase."
+
+
         try:
             total = coleccion_ai.count()
             if total == 0:
@@ -3736,15 +3797,19 @@ elif menu == "🧠 Logística AI":
                                                         desc_extra.append(f"BANDEJA asociada al producto {ref_prod}: ref={bp['Codigo']} desc={rb.get('Descripcion','')} medidas={medidas_bp} uds_palet={rb.get('Unidades_palet','')}")
                                 contexto_enriquecido = '\n'.join(desc_extra) + '\n\n' + contexto_enriquecido
 
+                        if motor_ai == "claude":
+                            datos_contexto = construir_contexto_firebase()
+                        else:
+                            datos_contexto = f"""DATOS EXACTOS DE REFERENCIAS MENCIONADAS:
+{chr(10).join(contexto_extra) if contexto_extra else "No se encontraron referencias exactas."}
+
+DATOS RELEVANTES (búsqueda semántica):
+{contexto if contexto else "No hay datos indexados."}"""
+
                         system_prompt = f"""Eres un agente de logística inteligente de Aldelis, especializado en análisis de inventario, aprovisionamiento y planificación de producción.
 
-Archivos disponibles: {archivos_lista}
-
-DATOS EXACTOS DE REFERENCIAS MENCIONADAS:
-{chr(10).join(contexto_extra) if contexto_extra else "No se encontraron referencias exactas en los datos."}
-
-DATOS RELEVANTES ADICIONALES (búsqueda semántica):
-{contexto if contexto else "No hay datos indexados."}
+DATOS COMPLETOS DEL SISTEMA:
+{datos_contexto}
 
 INSTRUCCIONES:
 - Responde siempre en español, de forma concisa y práctica
