@@ -401,13 +401,24 @@ def preprocesar_stock_erp(df):
     Renombra Ubicacion → Almacen, filtra almacenes relevantes y
     conserva solo las columnas necesarias."""
     df = df.copy()
-    # Si viene del ERP tiene 'Ubicacion' en lugar de 'Almacen'
-    if 'Ubicacion' in df.columns and 'Almacen' not in df.columns:
+    # El ERP puede tener 'Ubicacion' (ubicación específica: AL6, CAMARA BANDEJAS F19...)
+    # y 'Almacen' (agrupación de alto nivel: PLAZA, MERCAZARAGOZA...).
+    # Siempre usar 'Ubicacion' si existe, descartando la columna 'Almacen' del ERP.
+    if 'Ubicacion' in df.columns:
+        df = df.drop(columns=['Almacen'], errors='ignore')
         df = df.rename(columns={'Ubicacion': 'Almacen'})
     if 'Almacen' not in df.columns or 'Referencia' not in df.columns:
         return df
-    df['Almacen'] = df['Almacen'].astype(str).str.strip()
-    df = df[df['Almacen'].isin(ALMACENES_VALIDOS)]
+    # Normalizar: quitar todo tipo de whitespace (incluido \xa0) y pasar a mayúsculas
+    df['Almacen'] = (
+        df['Almacen']
+        .astype(str)
+        .str.replace(r'\s+', ' ', regex=True)   # colapsar múltiples espacios/tabs/nbsp
+        .str.strip()
+        .str.upper()
+    )
+    VALIDOS_UPPER = {a.upper() for a in ALMACENES_VALIDOS}
+    df = df[df['Almacen'].isin(VALIDOS_UPPER)]
     cols = [c for c in ['Referencia', 'Almacen', 'Cantidad'] if c in df.columns]
     return df[cols]
 
@@ -997,13 +1008,19 @@ if menu == "📂 Cargar Archivos":
         s = normalizar_columnas(s)
         c = normalizar_columnas(c)
 
-        # --- Preprocesar stock ERP (renombra Ubicacion→Almacen y filtra) ---
+        # --- Diagnóstico pre-filtro ---
+        col_alm = 'Almacen' if 'Almacen' in s.columns else ('Ubicacion' if 'Ubicacion' in s.columns else None)
+        if col_alm:
+            alm_raw = sorted(s[col_alm].astype(str).str.replace(r'\s+', ' ', regex=True).str.strip().str.upper().dropna().unique().tolist())
+            st.caption(f"📋 Almacenes en el archivo ERP: {', '.join(alm_raw)}")
+
+        # --- Preprocesar stock ERP (renombra Ubicacion→Almacen, normaliza y filtra) ---
         s = preprocesar_stock_erp(s)
 
         # --- Guardar stock ERP compartido para etiquetas (solo sesión, no Firebase) ---
         st.session_state.df_stock_erp = s.copy()
-        almacenes_en_archivo = sorted(s['Almacen'].dropna().unique().tolist()) if 'Almacen' in s.columns else []
-        st.info(f"🏭 Almacenes detectados en el archivo: {', '.join(almacenes_en_archivo)}")
+        almacenes_filtrados = sorted(s['Almacen'].dropna().unique().tolist()) if 'Almacen' in s.columns else []
+        st.info(f"✅ Almacenes usados tras filtro: {', '.join(almacenes_filtrados)}")
 
         # --- Validar columnas ---
         errores = (
