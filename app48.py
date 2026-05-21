@@ -3594,7 +3594,7 @@ elif menu == "🧠 Logística AI":
 
         return "\n\n".join(bloques) if bloques else "No hay datos cargados en Firebase."
 
-
+    def buscar_contexto_ai(pregunta, n=20):
         try:
             total = coleccion_ai.count()
             if total == 0:
@@ -3689,12 +3689,13 @@ elif menu == "🧠 Logística AI":
         # Selector de modelo
         MODELOS_AI = {
             "🟣 Claude Sonnet (Anthropic)": "claude",
+            "🔵 Gemini 2.0 Flash (Google)": "gemini",
             "🟡 Llama 3.3 70B (Groq)":     "groq",
         }
         modelo_sel = st.radio("Modelo IA:", list(MODELOS_AI.keys()),
                               horizontal=True, key="logistica_modelo")
         motor_ai = MODELOS_AI[modelo_sel]
-        st.caption("Claude: análisis profundo · Groq: respuesta rápida")
+        st.caption("Claude / Gemini: análisis profundo con datos completos · Groq: respuesta rápida")
         # Preguntas rápidas
         st.subheader("💡 Preguntas rápidas")
         preguntas = [
@@ -3725,7 +3726,11 @@ elif menu == "🧠 Logística AI":
             with st.chat_message("assistant"):
                 with st.spinner("Analizando..."):
                     try:
-                        contexto = buscar_contexto_ai(pregunta_actual)
+                        # Claude y Gemini usan contexto directo de Firebase; Groq usa ChromaDB
+                        if motor_ai in ("claude", "gemini"):
+                            contexto = ""
+                        else:
+                            contexto = buscar_contexto_ai(pregunta_actual)
                         archivos_lista = ", ".join(st.session_state.logistica_archivos.keys()) or "ninguno aún"
 
                         # Enriquecer contexto con búsqueda exacta de referencias
@@ -3853,7 +3858,7 @@ elif menu == "🧠 Logística AI":
                                                         desc_extra.append(f"BANDEJA asociada al producto {ref_prod}: ref={bp['Codigo']} desc={rb.get('Descripcion','')} medidas={medidas_bp} uds_palet={rb.get('Unidades_palet','')}")
                                 contexto_enriquecido = '\n'.join(desc_extra) + '\n\n' + contexto_enriquecido
 
-                        if motor_ai == "claude":
+                        if motor_ai in ("claude", "gemini"):
                             datos_contexto = construir_contexto_firebase()
                         else:
                             datos_contexto = f"""DATOS EXACTOS DE REFERENCIAS MENCIONADAS:
@@ -3882,12 +3887,13 @@ INSTRUCCIONES:
 
                         mensajes_hist = st.session_state.logistica_historial[-10:]
 
+                        import urllib.request, json as _json
+
                         if motor_ai == "claude":
                             ANTHROPIC_KEY = get_password("ANTHROPIC_API_KEY", "")
                             if not ANTHROPIC_KEY:
                                 st.warning("❌ ANTHROPIC_API_KEY no configurada en Secrets")
                                 st.stop()
-                            import urllib.request, json as _json
                             ant_msgs = [{"role": m["role"], "content": m["content"]}
                                         for m in mensajes_hist if isinstance(m.get("content"), str)]
                             if ant_msgs and ant_msgs[0]["role"] != "user":
@@ -3910,6 +3916,36 @@ INSTRUCCIONES:
                             )
                             with urllib.request.urlopen(req) as r:
                                 respuesta = _json.loads(r.read())["content"][0]["text"]
+
+                        elif motor_ai == "gemini":
+                            GEMINI_KEY = get_password("GEMINI_API_KEY", "")
+                            if not GEMINI_KEY:
+                                st.warning("❌ GEMINI_API_KEY no configurada en Secrets")
+                                st.stop()
+                            # Gemini usa role "model" en lugar de "assistant"
+                            gem_msgs = []
+                            for m in mensajes_hist:
+                                if not isinstance(m.get("content"), str):
+                                    continue
+                                role = "model" if m["role"] == "assistant" else "user"
+                                gem_msgs.append({"role": role, "parts": [{"text": m["content"]}]})
+                            # Asegurar que empieza por user
+                            while gem_msgs and gem_msgs[0]["role"] != "user":
+                                gem_msgs = gem_msgs[1:]
+                            payload = _json.dumps({
+                                "system_instruction": {"parts": [{"text": system_prompt}]},
+                                "contents": gem_msgs,
+                                "generationConfig": {"maxOutputTokens": 2048, "temperature": 0.3},
+                            }).encode()
+                            req = urllib.request.Request(
+                                f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={GEMINI_KEY}",
+                                data=payload,
+                                headers={"content-type": "application/json"},
+                                method="POST"
+                            )
+                            with urllib.request.urlopen(req) as r:
+                                respuesta = _json.loads(r.read())["candidates"][0]["content"]["parts"][0]["text"]
+
                         else:
                             from groq import Groq as GroqClient
                             groq_client = GroqClient(api_key=GROQ_API_KEY)
