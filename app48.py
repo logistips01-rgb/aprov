@@ -446,7 +446,7 @@ if not st.session_state.firebase_cargado:
         ("df_ventas",          "etiquetas",          "df_ventas"),
         ("df_transito_etq",    "etiquetas",          "df_transito_etq"),
         ("df_envase",          "etiquetas",          "df_envase"),
-        ("df_stock_erp",       "stock",              "df_stock_erp"),
+        # df_stock_erp NO se persiste en Firebase (archivo ERP muy grande)
         ("df_pedidos",         "pedidos",            "df_pedidos"),
         ("df_planificacion",   "planificacion",      "df_planificacion"),
         ("df_paletizacion",    "logistica",          "df_paletizacion"),
@@ -508,6 +508,8 @@ if 'df_planificacion' not in st.session_state:
     st.session_state.df_planificacion = None
 if 'df_stock_pt' not in st.session_state:
     st.session_state.df_stock_pt = None
+if 'df_stock_erp' not in st.session_state:
+    st.session_state.df_stock_erp = None
 if 'df_produccion_pt' not in st.session_state:
     st.session_state.df_produccion_pt = None
 if 'df_plan_produccion' not in st.session_state:
@@ -998,9 +1000,10 @@ if menu == "📂 Cargar Archivos":
         # --- Preprocesar stock ERP (renombra Ubicacion→Almacen y filtra) ---
         s = preprocesar_stock_erp(s)
 
-        # --- Guardar stock ERP compartido para etiquetas ---
+        # --- Guardar stock ERP compartido para etiquetas (solo sesión, no Firebase) ---
         st.session_state.df_stock_erp = s.copy()
-        df_a_firebase(s, 'stock', 'df_stock_erp')
+        almacenes_en_archivo = sorted(s['Almacen'].dropna().unique().tolist()) if 'Almacen' in s.columns else []
+        st.info(f"🏭 Almacenes detectados en el archivo: {', '.join(almacenes_en_archivo)}")
 
         # --- Validar columnas ---
         errores = (
