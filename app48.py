@@ -1337,7 +1337,8 @@ elif menu == "📊 Dashboard":
         if stock_final < seg:
             pedido = math.ceil(seg - stock_final + incremento)
             dias_stock_actual = (stock_op / cdm) if cdm > 0 else 999
-            if dias_stock_actual < lead:
+            # Rojo si: ya estamos por debajo del stock de seguridad, o no llegamos al lead time
+            if stock_op < seg or dias_stock_actual < lead:
                 return pal_int, pal_merca, pal_txt, pal_avitrans, pal_transito, pal_transito2, seg_pal, cdm_pal, f"🔴 COMPRAR: {pedido} Pal.", "#721c24"
             else:
                 return pal_int, pal_merca, pal_txt, pal_avitrans, pal_transito, pal_transito2, seg_pal, cdm_pal, f"🟡 COMPRAR: {pedido} Pal.", "#856404"
