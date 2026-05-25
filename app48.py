@@ -423,6 +423,51 @@ def preprocesar_stock_erp(df):
     cols = [c for c in ['Referencia', 'Almacen', 'Cantidad'] if c in df.columns]
     return df[cols]
 
+
+def preprocesar_transito_erp(df):
+    """Adapta el archivo de tránsito del ERP al formato estándar (Referencia, Descripcion, Cantidad).
+    Mapea COD→Referencia, DESCRIPCION→Descripcion, filtra Cantidad>0 y descarta columnas sobrantes.
+    Tolerante a variaciones de nombre: busca por posición si los nombres no coinciden."""
+    df = df.copy()
+    # Mapa de nombres alternativos → nombre canónico
+    alias = {
+        'COD':         'Referencia',
+        'CODIGO':      'Referencia',
+        'ARTICULO':    'Referencia',
+        'ART':         'Referencia',
+        'REF':         'Referencia',
+        'REFERENCIA':  'Referencia',
+        'DESCRIPCION': 'Descripcion',
+        'DESCRIPCIÓN': 'Descripcion',
+        'DESC':        'Descripcion',
+        'CANTIDAD':    'Cantidad',
+        'UNIDADES':    'Cantidad',
+        'PEDIDO':      'Cantidad',
+    }
+    rename_map = {}
+    for col in df.columns:
+        key = str(col).strip().upper()
+        if key in alias and alias[key] not in rename_map.values():
+            rename_map[col] = alias[key]
+    df = df.rename(columns=rename_map)
+
+    # Si no se encontró Referencia por nombre, intentar por posición (columna C = índice 2)
+    cols = list(df.columns)
+    if 'Referencia' not in df.columns and len(cols) >= 3:
+        df = df.rename(columns={cols[2]: 'Referencia'})
+    if 'Cantidad' not in df.columns and len(cols) >= 5:
+        df = df.rename(columns={cols[4]: 'Cantidad'})
+
+    if 'Referencia' not in df.columns or 'Cantidad' not in df.columns:
+        return df
+
+    df['Referencia'] = df['Referencia'].astype(str).str.strip().str.upper()
+    df['Cantidad']   = pd.to_numeric(df['Cantidad'], errors='coerce').fillna(0)
+    df = df[df['Cantidad'] > 0]
+
+    keep = [c for c in ['Referencia', 'Descripcion', 'Cantidad'] if c in df.columns]
+    return df[keep]
+
 # ─────────────────────────────────────────────
 # SESSION STATE
 # ─────────────────────────────────────────────
@@ -1509,14 +1554,15 @@ elif menu == "🚢 Tránsito":
                 f_t = st.file_uploader(f"Excel de {label} (.xlsx)", type="xlsx", key=f"file_{key}")
                 if f_t and st.button(f"📥 Cargar Excel", key=f"btn_{key}"):
                     df_t = pd.read_excel(f_t)
-                    df_t = normalizar_columnas(df_t)
-                    if columnas_faltantes(df_t, ['Referencia', 'Cantidad'], label) == []:
-                        df_t['Referencia'] = df_t['Referencia'].astype(str).str.strip()
-                        df_t['Cantidad']   = pd.to_numeric(df_t['Cantidad'], errors='coerce').fillna(0)
-                        st.session_state[key] = df_t[['Referencia', 'Cantidad']]
+                    df_t = preprocesar_transito_erp(df_t)
+                    if 'Referencia' not in df_t.columns or 'Cantidad' not in df_t.columns:
+                        st.error("❌ No se encontraron columnas Referencia/Cantidad en el archivo.")
+                    else:
+                        cols_save = [c for c in ['Referencia', 'Cantidad'] if c in df_t.columns]
+                        st.session_state[key] = df_t[cols_save]
                         coleccion_t = 'etiquetas' if key == 'df_transito_etq' else 'bandejas'
-                        df_a_firebase(df_t[['Referencia', 'Cantidad']], coleccion_t, key)
-                        st.success(f"✅ {label} cargado.")
+                        df_a_firebase(df_t[cols_save], coleccion_t, key)
+                        st.success(f"✅ {label} cargado: {len(df_t)} referencias.")
                         st.rerun()
             st.subheader(f"Listado actual - {label}")
             if st.session_state[key].empty:
@@ -2791,13 +2837,14 @@ elif menu == "🏷️ Etiquetas":
             f_tetq = st.file_uploader("Subir Excel de Tránsito (.xlsx)", type="xlsx", key="tetq")
             if f_tetq and st.button("📥 Cargar Tránsito"):
                 df_tetq = pd.read_excel(f_tetq)
-                df_tetq = normalizar_columnas(df_tetq)
-                df_tetq['Referencia'] = df_tetq['Referencia'].astype(str).str.strip().str.upper()
-                df_tetq['Cantidad']   = pd.to_numeric(df_tetq['Cantidad'], errors='coerce').fillna(0)
-                st.session_state.df_transito_etq = df_tetq[['Referencia', 'Cantidad']]
-                df_a_firebase(st.session_state.df_transito_etq, 'etiquetas', 'df_transito_etq')
-                st.success("✅ Tránsito de etiquetas cargado.")
-                st.rerun()
+                df_tetq = preprocesar_transito_erp(df_tetq)
+                if 'Referencia' not in df_tetq.columns or 'Cantidad' not in df_tetq.columns:
+                    st.error("❌ No se encontraron columnas Referencia/Cantidad en el archivo.")
+                else:
+                    st.session_state.df_transito_etq = df_tetq[['Referencia', 'Cantidad']]
+                    df_a_firebase(st.session_state.df_transito_etq, 'etiquetas', 'df_transito_etq')
+                    st.success(f"✅ Tránsito de etiquetas cargado: {len(df_tetq)} referencias.")
+                    st.rerun()
         with col_te2:
             if not st.session_state.df_transito_etq.empty:
                 st.dataframe(st.session_state.df_transito_etq, use_container_width=True)
@@ -2867,13 +2914,17 @@ elif menu == "🏷️ Etiquetas":
         )
 
         # Filtros
-        col_f1, col_f2 = st.columns([2,2])
+        col_f1, col_f2, col_f3 = st.columns([2, 2, 1])
         with col_f1:
             filtro_etq = st.selectbox("Filtrar por estado:", ["Todos", "🔴 Solo alertas", "🟡 Amarillo", "🟢 Solo OK"], key="fetq")
         with col_f2:
             buscar_etq = st.text_input("Buscar referencia:", key="betq")
+        with col_f3:
+            solo_con_consumo = st.checkbox("Solo con consumo", value=True)
 
         vista_etq = df_etq.copy()
+        if solo_con_consumo:
+            vista_etq = vista_etq[vista_etq['CDM_mes'] > 0]
         if filtro_etq == "🔴 Solo alertas":
             vista_etq = vista_etq[vista_etq['Estado'].str.startswith("🔴")]
         elif filtro_etq == "🟡 Amarillo":
@@ -3943,8 +3994,14 @@ INSTRUCCIONES:
                                 headers={"content-type": "application/json"},
                                 method="POST"
                             )
-                            with urllib.request.urlopen(req) as r:
-                                respuesta = _json.loads(r.read())["candidates"][0]["content"]["parts"][0]["text"]
+                            try:
+                                with urllib.request.urlopen(req) as r:
+                                    respuesta = _json.loads(r.read())["candidates"][0]["content"]["parts"][0]["text"]
+                            except urllib.error.HTTPError as he:
+                                if he.code == 429:
+                                    st.warning("⏳ Gemini: límite de peticiones alcanzado (429). Espera unos segundos y vuelve a intentarlo.")
+                                    st.stop()
+                                raise
 
                         else:
                             from groq import Groq as GroqClient
