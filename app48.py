@@ -1317,6 +1317,29 @@ elif menu == "📊 Dashboard":
     else:
         df['Situacion'] = df['Situacion'].astype(str).str.strip().str.upper().replace('NAN', 'ACTIVA').fillna('ACTIVA')
 
+    # --- Variación consumo reciente vs CDM (necesaria antes de calcular_alerta) ---
+    df['Var_CDM'] = 0.0
+    if st.session_state.df_consumos is not None:
+        try:
+            cons_v = st.session_state.df_consumos.copy()
+            cons_v['Fecha'] = pd.to_datetime(cons_v['Fecha'], errors='coerce').dt.normalize()
+            cons_v['Cantidad'] = pd.to_numeric(cons_v['Cantidad'], errors='coerce').fillna(0).abs()
+            ult = cons_v.groupby('Referencia')['Fecha'].max().reset_index().rename(columns={'Fecha': 'UltFecha'})
+            cons_v = cons_v.merge(ult, on='Referencia')
+            cons_ult = (
+                cons_v[cons_v['Fecha'] == cons_v['UltFecha']]
+                .groupby('Referencia')['Cantidad'].sum()
+                .reset_index().rename(columns={'Cantidad': 'Cons_ult'})
+            )
+            df = df.merge(cons_ult, on='Referencia', how='left')
+            u_p_v = df['Unidades_palet'].clip(lower=1)
+            cons_pal_v = df['Cons_ult'].fillna(0) / u_p_v
+            cdm_ref_v  = df['Cdm'].clip(lower=0.01)
+            df['Var_CDM'] = ((cons_pal_v - cdm_ref_v) / cdm_ref_v * 100).round(0).fillna(0).astype(int)
+            df = df.drop(columns=['Cons_ult'])
+        except Exception:
+            df['Var_CDM'] = 0
+
     # --- Calcular palets y alerta ---
     def calcular_alerta(row):
         u_p        = max(row['Unidades_palet'], 1)
@@ -1325,6 +1348,13 @@ elif menu == "📊 Dashboard":
         cdm        = row['Cdm']               # ya en palets/día
         incremento = row.get('Incremento', 0) or 0
         situacion  = row.get('Situacion', 'ACTIVA')
+        var_cdm    = row.get('Var_CDM', 0) or 0
+
+        # Ajustar CDM efectivo según variación de consumo reciente
+        # Solo se aplica si la variación supera ±15%
+        if abs(var_cdm) >= 15:
+            cdm = cdm * (1 + var_cdm / 100)
+            cdm = max(cdm, 0.01)
 
         pal_int       = round(row['Stock_interno']         / u_p)
         pal_merca     = round(row['Stock_merca']           / u_p)
@@ -1391,29 +1421,6 @@ elif menu == "📊 Dashboard":
             df = df.drop(columns=['pal_ant'])
     except Exception:
         pass
-
-    # --- Variación consumo reciente vs CDM ---
-    df['Var_CDM'] = 0.0
-    if st.session_state.df_consumos is not None:
-        try:
-            cons_v = st.session_state.df_consumos.copy()
-            cons_v['Fecha'] = pd.to_datetime(cons_v['Fecha'], errors='coerce').dt.normalize()
-            cons_v['Cantidad'] = pd.to_numeric(cons_v['Cantidad'], errors='coerce').fillna(0).abs()
-            ult = cons_v.groupby('Referencia')['Fecha'].max().reset_index().rename(columns={'Fecha': 'UltFecha'})
-            cons_v = cons_v.merge(ult, on='Referencia')
-            cons_ult = (
-                cons_v[cons_v['Fecha'] == cons_v['UltFecha']]
-                .groupby('Referencia')['Cantidad'].sum()
-                .reset_index().rename(columns={'Cantidad': 'Cons_ult'})
-            )
-            df = df.merge(cons_ult, on='Referencia', how='left')
-            u_p = df['Unidades_palet'].clip(lower=1)
-            cons_pal = df['Cons_ult'].fillna(0) / u_p
-            cdm_ref  = df['Cdm'].clip(lower=0.01)
-            df['Var_CDM'] = ((cons_pal - cdm_ref) / cdm_ref * 100).round(0).fillna(0).astype(int)
-            df = df.drop(columns=['Cons_ult'])
-        except Exception:
-            pass
 
     # --- Filtros rápidos ---
     col1, col2, col3 = st.columns(3)
