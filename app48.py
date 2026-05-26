@@ -1754,7 +1754,7 @@ elif menu == "📦 Envases":
     st.header("📦 Gestión de Envases, Cartones y Palets")
 
     with st.expander("📋 Maestro Envases", expanded=st.session_state.df_maestro_envases is None):
-        st.caption("Columnas requeridas: Referencia, Descripcion, Unidades_palet, Lead_time, Stock_seguridad | Opcionales: Tipo (ERP = stock desde AL6 · MANUAL = stock manual), Ventas_mes")
+        st.caption("Columnas requeridas: Referencia, Descripcion, Unidades_palet, Lead_time, Stock_seguridad | Opcional: Tipo (ERP = stock desde AL6 · MANUAL = stock manual)")
         f_menv = st.file_uploader("Subir Maestro Envases (.xlsx)", type="xlsx", key="fmenv")
         if f_menv and st.button("💾 Guardar Maestro Envases", key="btn_menv"):
             df_me = pd.read_excel(f_menv)
@@ -1765,7 +1765,6 @@ elif menu == "📦 Envases":
                 df_me['Unidades_palet']  = pd.to_numeric(df_me['Unidades_palet'], errors='coerce').fillna(1).clip(lower=1)
                 df_me['Lead_time']       = pd.to_numeric(df_me['Lead_time'], errors='coerce').fillna(1)
                 df_me['Stock_seguridad'] = pd.to_numeric(df_me['Stock_seguridad'], errors='coerce').fillna(0)
-                df_me['Ventas_mes']      = pd.to_numeric(df_me['Ventas_mes'], errors='coerce').fillna(0) if 'Ventas_mes' in df_me.columns else 0
                 if 'Tipo' not in df_me.columns:
                     df_me['Tipo'] = ''
                 st.session_state.df_maestro_envases = df_me
@@ -1773,7 +1772,7 @@ elif menu == "📦 Envases":
                 st.success(f"✅ {len(df_me)} referencias de envases guardadas.")
                 st.rerun()
         if st.session_state.df_maestro_envases is not None:
-            cols_show_me = [c for c in ['Referencia', 'Descripcion', 'Tipo', 'Unidades_palet', 'Lead_time', 'Stock_seguridad', 'Ventas_mes'] if c in st.session_state.df_maestro_envases.columns]
+            cols_show_me = [c for c in ['Referencia', 'Descripcion', 'Tipo', 'Unidades_palet', 'Lead_time', 'Stock_seguridad'] if c in st.session_state.df_maestro_envases.columns]
             st.info(f"✅ {len(st.session_state.df_maestro_envases)} referencias cargadas.")
             st.dataframe(st.session_state.df_maestro_envases[cols_show_me], use_container_width=True)
 
@@ -1785,7 +1784,6 @@ elif menu == "📦 Envases":
     maestro_env['Referencia'] = maestro_env['Referencia'].astype(str).str.strip().str.upper()
     maestro_env['Lead_time']       = pd.to_numeric(maestro_env['Lead_time'], errors='coerce').fillna(1)
     maestro_env['Stock_seguridad'] = pd.to_numeric(maestro_env['Stock_seguridad'], errors='coerce').fillna(0)
-    maestro_env['Ventas_mes']      = pd.to_numeric(maestro_env['Ventas_mes'], errors='coerce').fillna(0) if 'Ventas_mes' in maestro_env.columns else 0
     maestro_env['Unidades_palet']  = pd.to_numeric(maestro_env['Unidades_palet'], errors='coerce').fillna(1).clip(lower=1) if 'Unidades_palet' in maestro_env.columns else 1
     if 'Tipo' not in maestro_env.columns:
         maestro_env['Tipo'] = ''
@@ -1846,11 +1844,14 @@ elif menu == "📦 Envases":
             st.warning("⚠️ Sin stock ERP: ve a **Cargar Archivos** y sincroniza para ver stocks externos.")
 
         df_ext = maestro_env.copy()
-        # CDM y stock en huecos (unidades / Unidades_Palet)
-        df_ext['CDM_dia'] = ((df_ext['Ventas_mes'] / 24) / df_ext['Unidades_palet']).round(1)
+        # CDM desde df_ventas (módulo Etiquetas): total unidades mes / 24 / Unidades_palet
+        if st.session_state.df_ventas is not None:
+            ventas_total = pd.to_numeric(st.session_state.df_ventas['Unidades'], errors='coerce').abs().sum()
+        else:
+            ventas_total = 0
+            st.info("ℹ️ Sin datos de ventas. Sincroniza el módulo de Etiquetas para calcular el CDM.")
+        df_ext['CDM_dia'] = ((ventas_total / 24) / df_ext['Unidades_palet']).round(1)
         df_ext['SS']      = (df_ext['CDM_dia'] * df_ext['Lead_time']).apply(math.ceil)
-        if df_ext['CDM_dia'].sum() == 0:
-            st.info("ℹ️ CDM = 0 en todas las referencias. Añade la columna **Ventas_mes** en el maestro de envases.")
         df_ext = df_ext.merge(stock_ext, on='Referencia', how='left')
         stk_u = pd.to_numeric(df_ext['Stock_ext'], errors='coerce').fillna(0)
         df_ext['Stk_ext'] = (stk_u / df_ext['Unidades_palet']).apply(math.floor).astype(int)
