@@ -952,6 +952,7 @@ GRUPOS_ADMIN = {
     "Principal": ["📂 Cargar Archivos", "📊 Dashboard", "📈 Análisis", "🧠 Logística AI"],
     "Gestión": ["🔗 Materiales", "🏷️ Etiquetas", "🚢 Tránsito"],
     "Producción": ["🔍 Previsión y Obsoletos"],
+    "Análisis": ["🎯 SS Óptimo"],
 }
 GRUPOS_ID = {"Etiquetas": ["🏷️ Etiquetas"]}
 GRUPOS_ALMACEN = {"Etiquetas": ["🏷️ Etiquetas"]}
@@ -970,6 +971,7 @@ LABELS_MENU = {
     "🏪 Producto Terminado": "Prod. Terminado",
     "🏭 Planificación Producción": "Planificacion",
     "🔍 Previsión y Obsoletos": "Prevision",
+    "🎯 SS Óptimo": "SS Optimo",
     "🤖 Agente IA": "Agente IA",
 }
 
@@ -1150,6 +1152,17 @@ if menu == "📂 Cargar Archivos":
         for col in ['Cdm', 'Stock_interno', 'Stock_merca', 'Stock_txt', 'Lead_time', 'Stock_seguridad', 'Unidades_palet', 'Incremento']:
             if col in final.columns:
                 final[col] = pd.to_numeric(final[col], errors='coerce').fillna(0)
+
+        # Preservar Oferta y congelar CDM para referencias en oferta
+        if st.session_state.df_final is not None and 'Oferta' in st.session_state.df_final.columns:
+            prev_of = st.session_state.df_final[['Referencia', 'Cdm', 'Oferta']].copy()
+            final = final.merge(prev_of.rename(columns={'Cdm': '_cdm_prev', 'Oferta': 'Oferta'}), on='Referencia', how='left')
+            final['Oferta'] = final['Oferta'].fillna(False)
+            mask = final['Oferta'] == True
+            final.loc[mask, 'Cdm'] = final.loc[mask, '_cdm_prev']
+            final = final.drop(columns=['_cdm_prev'])
+        else:
+            final['Oferta'] = False
 
         st.session_state.df_final = final
         st.session_state.df_consumos = c
@@ -1490,7 +1503,7 @@ elif menu == "📊 Dashboard":
 
     # --- Tabla coloreada ---
     cols_mostrar = [
-        'Referencia', 'Descripcion', 'Unidades_palet',
+        'Oferta', 'Referencia', 'Descripcion', 'Unidades_palet',
         'Seg_pal', 'CDM_pal', 'Var_CDM', 'Dias_stock', 'Var_semana',
         'Pal_Interno', 'Pal_Merca', 'Pal_TXT', 'Pal_Avitrans', 'Pal_Transito', 'Pal_Transito2',
         'Pedido_pal', 'Estado'
@@ -1537,6 +1550,8 @@ elif menu == "📊 Dashboard":
                     v = int(val) if val else 0
                     style = "font-weight:600;color:#E74C3C;" if v > 0 else "color:#aaa;"
                     cells += f'<td style="padding:8px 12px;{style}">{v if v > 0 else "-"}</td>'
+                elif col == 'Oferta':
+                    cells += f'<td style="padding:8px 12px;text-align:center;">{"🏷️" if val else ""}</td>'
                 elif col == 'Descripcion':
                     cells += f'<td style="padding:8px 12px;color:#666;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="{val}">{str(val)[:30]}</td>'
                 elif col == 'Referencia':
@@ -1557,6 +1572,8 @@ elif menu == "📊 Dashboard":
                 col_widths[col] = 'min-width:100px;'
             elif col == 'Estado':
                 col_widths[col] = 'min-width:140px;'
+            elif col == 'Oferta':
+                col_widths[col] = 'min-width:40px;text-align:center;'
             elif col in ['Pedido_pal', 'Seg_pal', 'CDM_pal', 'Dias_stock', 'Var_semana']:
                 col_widths[col] = 'min-width:60px;text-align:center;'
             else:
@@ -1580,6 +1597,30 @@ elif menu == "📊 Dashboard":
 
     render_dashboard_table(vista, cols_mostrar)
 
+    # --- Gestión de ofertas ---
+    with st.expander("🏷️ Marcar referencias en oferta"):
+        st.caption("Mientras una referencia esté marcada, su CDM no se recalcula en el sync y queda excluida del análisis de SS Óptimo.")
+        if st.session_state.df_final is not None:
+            df_of = st.session_state.df_final[['Referencia', 'Descripcion']].copy()
+            df_of['Oferta'] = st.session_state.df_final.get('Oferta', pd.Series(False, index=st.session_state.df_final.index)).fillna(False).astype(bool) if 'Oferta' in st.session_state.df_final.columns else False
+            edited_of = st.data_editor(
+                df_of,
+                column_config={
+                    'Oferta':      st.column_config.CheckboxColumn('En oferta'),
+                    'Referencia':  st.column_config.TextColumn('Referencia', disabled=True),
+                    'Descripcion': st.column_config.TextColumn('Descripción', disabled=True),
+                },
+                hide_index=True,
+                use_container_width=True,
+                key="oferta_editor"
+            )
+            if st.button("💾 Guardar cambios de oferta", key="btn_guardar_oferta"):
+                oferta_map = edited_of.set_index('Referencia')['Oferta'].to_dict()
+                st.session_state.df_final['Oferta'] = st.session_state.df_final['Referencia'].map(oferta_map).fillna(False)
+                df_a_firebase(st.session_state.df_final, 'bandejas', 'df_final')
+                st.success("✅ Cambios de oferta guardados.")
+                st.rerun()
+
     # --- Exportar a Excel ---
     export_df = vista[cols_mostrar].copy()
     st.download_button(
@@ -1589,6 +1630,112 @@ elif menu == "📊 Dashboard":
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
 
+
+# ══════════════════════════════════════════════
+# ══════════════════════════════════════════════
+# MÓDULO: SS ÓPTIMO
+# ══════════════════════════════════════════════
+elif menu == "🎯 SS Óptimo":
+    st.header("🎯 Stock de Seguridad Óptimo")
+    st.caption("Calcula el SS necesario para cubrir el peor día de consumo histórico real, excluyendo picos atípicos (2,5σ). Las referencias en oferta se excluyen del análisis.")
+
+    if st.session_state.df_final is None or st.session_state.df_consumos is None:
+        st.warning("Necesitas haber sincronizado datos primero (Módulo Cargar Archivos).")
+    else:
+        df_f = st.session_state.df_final.copy()
+        df_c = st.session_state.df_consumos.copy()
+
+        df_f['Referencia'] = df_f['Referencia'].astype(str).str.strip().str.upper()
+        df_c['Referencia'] = df_c['Referencia'].astype(str).str.strip().str.upper()
+        df_c['Fecha'] = pd.to_datetime(df_c['Fecha'], errors='coerce').dt.normalize()
+        df_c['Cantidad'] = pd.to_numeric(df_c['Cantidad'], errors='coerce').fillna(0).abs()
+
+        # Excluir referencias en oferta
+        if 'Oferta' in df_f.columns:
+            df_f = df_f[df_f['Oferta'] != True]
+
+        ref_info = df_f[['Referencia', 'Descripcion', 'Unidades_palet', 'Lead_time', 'Stock_seguridad', 'Cdm']].copy()
+        ref_info['Unidades_palet'] = pd.to_numeric(ref_info['Unidades_palet'], errors='coerce').clip(lower=1)
+        ref_info['Lead_time'] = pd.to_numeric(ref_info['Lead_time'], errors='coerce').fillna(1).clip(lower=1)
+
+        c_dia = df_c.groupby(['Referencia', 'Fecha'])['Cantidad'].sum().reset_index()
+        c_dia = c_dia[c_dia['Cantidad'] > 0]
+        c_dia = c_dia.merge(ref_info[['Referencia', 'Unidades_palet']], on='Referencia', how='inner')
+        c_dia['Palets_dia'] = c_dia['Cantidad'] / c_dia['Unidades_palet']
+
+        resultados = []
+        for ref, grupo in c_dia.groupby('Referencia'):
+            info_row = ref_info[ref_info['Referencia'] == ref]
+            if info_row.empty:
+                continue
+            info = info_row.iloc[0]
+
+            cdm_pal = grupo['Palets_dia'].mean()
+            std_pal = grupo['Palets_dia'].std(ddof=0) if len(grupo) > 1 else 0
+            umbral = cdm_pal + 2.5 * std_pal
+            dias_validos = grupo[grupo['Palets_dia'] <= umbral]
+            max_valido = dias_validos['Palets_dia'].max() if not dias_validos.empty else cdm_pal
+
+            lead = int(info['Lead_time'])
+            ss_sugerido = math.ceil((max_valido - cdm_pal) * lead)
+            ss_sugerido = max(ss_sugerido, 0)
+            ss_actual = int(info['Stock_seguridad'])
+            diferencia = ss_actual - ss_sugerido
+
+            resultados.append({
+                'Referencia':        ref,
+                'Descripcion':       str(info['Descripcion'])[:35],
+                'CDM (pal)':         round(cdm_pal, 1),
+                'Lead time':         lead,
+                'Max día válido':    round(max_valido, 1),
+                'SS Actual (pal)':   ss_actual,
+                'SS Sugerido (pal)': ss_sugerido,
+                'Diferencia':        diferencia,
+            })
+
+        if not resultados:
+            st.info("Sin datos suficientes para calcular.")
+        else:
+            df_ss = pd.DataFrame(resultados).sort_values('Diferencia', ascending=False)
+
+            sobredim = (df_ss['Diferencia'] > 2).sum()
+            infradig  = (df_ss['Diferencia'] < 0).sum()
+            palets_lib = int(df_ss[df_ss['Diferencia'] > 0]['Diferencia'].sum())
+
+            c1, c2, c3, c4 = st.columns(4)
+            c1.metric("Referencias analizadas", len(df_ss))
+            c2.metric("Sobredimensionadas", sobredim, help="SS actual > SS sugerido en más de 2 pal.")
+            c3.metric("En riesgo", infradig, help="SS actual < SS sugerido")
+            c4.metric("Palets a liberar", palets_lib)
+
+            st.divider()
+
+            filtro_ss = st.selectbox("Mostrar:", ["Todas", "Sobredimensionadas (ahorro posible)", "En riesgo (SS insuficiente)"])
+            df_vis = df_ss.copy()
+            if filtro_ss == "Sobredimensionadas (ahorro posible)":
+                df_vis = df_vis[df_vis['Diferencia'] > 2]
+            elif filtro_ss == "En riesgo (SS insuficiente)":
+                df_vis = df_vis[df_vis['Diferencia'] < 0]
+
+            def color_ss(row):
+                if row['Diferencia'] > 2:
+                    return ['background-color:#FDEDEC'] * len(row)
+                elif row['Diferencia'] < 0:
+                    return ['background-color:#FEF9E7'] * len(row)
+                return [''] * len(row)
+
+            st.dataframe(
+                df_vis.style.apply(color_ss, axis=1),
+                use_container_width=True,
+                hide_index=True
+            )
+
+            st.download_button(
+                "📥 Exportar a Excel",
+                data=exportar_excel_prof(df_vis, "SS_Optimo"),
+                file_name="ss_optimo.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            )
 
 # ══════════════════════════════════════════════
 # MÓDULO 3: TRÁNSITO
