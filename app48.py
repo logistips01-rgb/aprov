@@ -503,6 +503,9 @@ if not st.session_state.firebase_cargado:
         ("df_ventas",          "etiquetas",          "df_ventas"),
         ("df_transito_etq",    "etiquetas",          "df_transito_etq"),
         ("df_envase",          "etiquetas",          "df_envase"),
+        ("df_maestro_envases", "envases",            "df_maestro_envases"),
+        ("df_stock_plaza",     "envases",            "df_stock_plaza"),
+        ("df_transito_envases","envases",            "df_transito_envases"),
         # df_stock_erp NO se persiste en Firebase (archivo ERP muy grande)
         ("df_pedidos",         "pedidos",            "df_pedidos"),
         ("df_planificacion",   "planificacion",      "df_planificacion"),
@@ -581,6 +584,12 @@ if 'df_paletizacion' not in st.session_state:
     st.session_state.df_paletizacion = None
 if 'df_envase' not in st.session_state:
     st.session_state.df_envase = None
+if 'df_maestro_envases' not in st.session_state:
+    st.session_state.df_maestro_envases = None
+if 'df_stock_plaza' not in st.session_state:
+    st.session_state.df_stock_plaza = None
+if 'df_transito_envases' not in st.session_state:
+    st.session_state.df_transito_envases = pd.DataFrame(columns=['Referencia', 'Cantidad'])
 
 # ─────────────────────────────────────────────
 # BASE DE DATOS SQLITE
@@ -950,7 +959,7 @@ st.sidebar.markdown("""
 # Menú según rol
 GRUPOS_ADMIN = {
     "Principal": ["📂 Cargar Archivos", "📊 Dashboard", "📈 Análisis", "🧠 Logística AI"],
-    "Gestión": ["🔗 Materiales", "🏷️ Etiquetas", "🚢 Tránsito"],
+    "Gestión": ["🔗 Materiales", "🏷️ Etiquetas", "🚢 Tránsito", "📦 Envases"],
     "Producción": ["🔍 Previsión y Obsoletos"],
     "Análisis": ["🎯 SS Óptimo"],
 }
@@ -972,6 +981,7 @@ LABELS_MENU = {
     "🏭 Planificación Producción": "Planificacion",
     "🔍 Previsión y Obsoletos": "Prevision",
     "🎯 SS Óptimo": "SS Optimo",
+    "📦 Envases": "Envases",
     "🤖 Agente IA": "Agente IA",
 }
 
@@ -1736,6 +1746,301 @@ elif menu == "🎯 SS Óptimo":
                 file_name="ss_optimo.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
+
+# ══════════════════════════════════════════════
+# MÓDULO: ENVASES
+# ══════════════════════════════════════════════
+elif menu == "📦 Envases":
+    st.header("📦 Gestión de Envases, Cartones y Palets")
+
+    with st.expander("📋 Maestro Envases", expanded=st.session_state.df_maestro_envases is None):
+        st.caption("Columnas requeridas: Referencia, Descripcion, Lead_time, Stock_Seguridad | Opcionales: Tipo, Ventas_mes")
+        f_menv = st.file_uploader("Subir Maestro Envases (.xlsx)", type="xlsx", key="fmenv")
+        if f_menv and st.button("💾 Guardar Maestro Envases", key="btn_menv"):
+            df_me = pd.read_excel(f_menv)
+            df_me = normalizar_columnas(df_me)
+            faltan = columnas_faltantes(df_me, ['Referencia', 'Descripcion', 'Lead_time', 'Stock_Seguridad'], "Maestro Envases")
+            if not faltan:
+                df_me['Referencia']      = df_me['Referencia'].astype(str).str.strip().str.upper()
+                df_me['Lead_time']       = pd.to_numeric(df_me['Lead_time'], errors='coerce').fillna(1)
+                df_me['Stock_Seguridad'] = pd.to_numeric(df_me['Stock_Seguridad'], errors='coerce').fillna(0)
+                df_me['Ventas_mes']      = pd.to_numeric(df_me.get('Ventas_mes', pd.Series(0, index=df_me.index)), errors='coerce').fillna(0) if 'Ventas_mes' in df_me.columns else 0
+                if 'Tipo' not in df_me.columns:
+                    df_me['Tipo'] = ''
+                st.session_state.df_maestro_envases = df_me
+                df_a_firebase(df_me, 'envases', 'df_maestro_envases')
+                st.success(f"✅ {len(df_me)} referencias de envases guardadas.")
+                st.rerun()
+        if st.session_state.df_maestro_envases is not None:
+            cols_show_me = [c for c in ['Referencia', 'Descripcion', 'Tipo', 'Lead_time', 'Stock_Seguridad', 'Ventas_mes'] if c in st.session_state.df_maestro_envases.columns]
+            st.info(f"✅ {len(st.session_state.df_maestro_envases)} referencias cargadas.")
+            st.dataframe(st.session_state.df_maestro_envases[cols_show_me], use_container_width=True)
+
+    if st.session_state.df_maestro_envases is None:
+        st.warning("⚠️ Sube primero el Maestro de Envases para ver el dashboard.")
+        st.stop()
+
+    maestro_env = st.session_state.df_maestro_envases.copy()
+    maestro_env['Referencia'] = maestro_env['Referencia'].astype(str).str.strip().str.upper()
+    maestro_env['Lead_time']       = pd.to_numeric(maestro_env['Lead_time'], errors='coerce').fillna(1)
+    maestro_env['Stock_Seguridad'] = pd.to_numeric(maestro_env['Stock_Seguridad'], errors='coerce').fillna(0)
+    maestro_env['Ventas_mes']      = pd.to_numeric(maestro_env.get('Ventas_mes', pd.Series(0, index=maestro_env.index)), errors='coerce').fillna(0) if 'Ventas_mes' in maestro_env.columns else 0
+    if 'Tipo' not in maestro_env.columns:
+        maestro_env['Tipo'] = ''
+
+    tab_ext, tab_plaza = st.tabs(["🏭 Externo (TXT · ARENTO · AVITRANS)", "🏢 Plaza"])
+
+    # ── Función render tabla HTML reutilizable ─────────────
+    def _render_env_table(df_vista, cols, color_col='Color', estado_col='Estado', pedido_col='Pedido'):
+        badge_map = {
+            "#721c24": ('background:#FDEDEC;color:#C0392B;', '#E74C3C'),
+            "#856404": ('background:#FEF9E7;color:#D68910;', '#F39C12'),
+            "#155724": ('background:#EAFAF1;color:#1E8449;', '#27AE60'),
+        }
+        col_labels = {estado_col: 'Estado', pedido_col: 'Pedido', 'Stk_ext': 'Stock Ext', 'Stk_plaza': 'Stock', 'SS': 'SS Ext', 'SS_plaza': 'SS', 'Transito_u': 'Tránsito', 'CDM_dia': 'CDM/día'}
+        rows_html = ""
+        for _, row in df_vista.iterrows():
+            color = row.get(color_col, '#155724')
+            estado_text = str(row.get(estado_col, '')).replace('🔴 ', '').replace('🟡 ', '').replace('🟢 ', '')
+            badge_style, dot_color = badge_map.get(color, badge_map["#155724"])
+            dot = f'<span style="width:5px;height:5px;border-radius:50%;background:{dot_color};display:inline-block;margin-right:4px;"></span>'
+            estado_badge = f'<span style="display:inline-flex;align-items:center;{badge_style}padding:3px 8px;border-radius:20px;font-size:10px;font-weight:600;">{dot}{estado_text}</span>'
+            row_bg = "background:#FEF9F9;" if color == "#721c24" else ("background:#F0FBF4;" if color == "#155724" else "")
+            cells = ""
+            for col in cols:
+                val = row.get(col, "")
+                if col == estado_col:
+                    cells += f'<td style="padding:8px 10px;">{estado_badge}</td>'
+                elif col == pedido_col:
+                    v = int(val) if val else 0
+                    style = "font-weight:600;color:#E74C3C;" if v > 0 else "color:#aaa;"
+                    cells += f'<td style="padding:8px 10px;{style}">{v if v > 0 else "—"}</td>'
+                elif col == 'Descripcion':
+                    cells += f'<td style="padding:8px 10px;color:#7F8C8D;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="{val}">{str(val)[:30]}</td>'
+                elif col == 'Referencia':
+                    cells += f'<td style="padding:8px 10px;font-weight:700;color:#2C3E50;">{val}</td>'
+                else:
+                    cells += f'<td style="padding:8px 10px;color:#555;">{val}</td>'
+            rows_html += f'<tr style="border-bottom:1px solid #F2F3F4;{row_bg}">{cells}</tr>'
+        cw = {'Referencia': 'min-width:90px;', 'Descripcion': 'min-width:160px;max-width:200px;', estado_col: 'min-width:160px;', pedido_col: 'min-width:80px;'}
+        headers = "".join([f'<th style="padding:8px 10px;text-align:left;font-size:10px;font-weight:700;color:#5D6D7E;text-transform:uppercase;letter-spacing:0.05em;background:#F4F6F7;border-bottom:2px solid #D5D8DC;{cw.get(c,"")}">{col_labels.get(c, c)}</th>' for c in cols])
+        html = f'<div style="background:white;border-radius:10px;border:1px solid #D5D8DC;overflow:hidden;margin-top:8px;"><div style="overflow-x:auto;max-height:520px;overflow-y:auto;"><table style="width:100%;border-collapse:collapse;font-size:12px;table-layout:auto;"><thead style="position:sticky;top:0;z-index:1;"><tr>{headers}</tr></thead><tbody>{rows_html}</tbody></table></div></div>'
+        st.markdown(html, unsafe_allow_html=True)
+
+    # ══════════════════════════════════════
+    # TAB 1: EXTERNO
+    # ══════════════════════════════════════
+    with tab_ext:
+        st.markdown("**Stock en almacenes externos** (TXT, ARENTO, AVITRANS). CDM = ventas mes / 24 días. SS = CDM × Lead time.")
+
+        if st.session_state.df_stock_erp is not None:
+            s_ext = st.session_state.df_stock_erp.copy()
+            s_ext = s_ext[s_ext['Almacen'].isin(ALMACENES_MERCA | ALMACENES_TXT | ALMACENES_AVITRANS)]
+            stock_ext = s_ext.groupby('Referencia')['Cantidad'].sum().reset_index().rename(columns={'Cantidad': 'Stock_ext'})
+        else:
+            stock_ext = pd.DataFrame(columns=['Referencia', 'Stock_ext'])
+
+        df_ext = maestro_env.copy()
+        df_ext['CDM_dia'] = (df_ext['Ventas_mes'] / 24).round(1)
+        df_ext['SS']      = (df_ext['CDM_dia'] * df_ext['Lead_time']).apply(math.ceil)
+        df_ext = df_ext.merge(stock_ext, on='Referencia', how='left')
+        df_ext['Stock_ext'] = pd.to_numeric(df_ext['Stock_ext'], errors='coerce').fillna(0).astype(int)
+
+        t_env = st.session_state.df_transito_envases.groupby('Referencia')['Cantidad'].sum().reset_index().rename(columns={'Cantidad': 'Transito_u'})
+        df_ext = df_ext.merge(t_env, on='Referencia', how='left')
+        df_ext['Transito_u'] = df_ext['Transito_u'].fillna(0).astype(int)
+
+        def _alerta_ext(row):
+            stock = int(row['Stock_ext']) + int(row['Transito_u'])
+            ss    = int(row['SS'])
+            cdm   = row['CDM_dia']
+            if cdm <= 0 and ss <= 0:
+                return stock, int(row['Stock_ext']), int(row['Transito_u']), ss, 0, "🟢 Sin consumo", "#155724"
+            if stock < ss:
+                pedido = max(0, math.ceil(ss - stock))
+                color  = "#721c24" if stock < ss / 2 else "#856404"
+                return stock, int(row['Stock_ext']), int(row['Transito_u']), ss, pedido, f"{'🔴' if color == '#721c24' else '🟡'} PEDIR: {pedido}", color
+            return stock, int(row['Stock_ext']), int(row['Transito_u']), ss, 0, "🟢 OK", "#155724"
+
+        df_ext[['Stk_total', 'Stk_ext', 'Transito_u', 'SS', 'Pedido', 'Estado', 'Color']] = df_ext.apply(
+            lambda r: pd.Series(_alerta_ext(r)), axis=1
+        )
+
+        with st.expander("🚢 Tránsito Envases"):
+            col_te1, col_te2 = st.columns(2)
+            with col_te1:
+                f_tenv = st.file_uploader("Subir tránsito (.xlsx)", type="xlsx", key="ftenv")
+                if f_tenv and st.button("📥 Cargar", key="btn_tenv"):
+                    df_tenv = normalizar_columnas(pd.read_excel(f_tenv))
+                    if 'Referencia' in df_tenv.columns and 'Cantidad' in df_tenv.columns:
+                        df_tenv['Referencia'] = df_tenv['Referencia'].astype(str).str.strip().str.upper()
+                        df_tenv['Cantidad']   = pd.to_numeric(df_tenv['Cantidad'], errors='coerce').fillna(0)
+                        st.session_state.df_transito_envases = df_tenv[['Referencia', 'Cantidad']]
+                        df_a_firebase(st.session_state.df_transito_envases, 'envases', 'df_transito_envases')
+                        st.success(f"✅ Tránsito cargado: {len(df_tenv)} referencias.")
+                        st.rerun()
+                    else:
+                        st.error("❌ Necesita columnas Referencia y Cantidad.")
+            with col_te2:
+                if not st.session_state.df_transito_envases.empty:
+                    st.dataframe(st.session_state.df_transito_envases, use_container_width=True)
+                    if st.button("🗑️ Limpiar tránsito", key="btn_del_tenv"):
+                        st.session_state.df_transito_envases = pd.DataFrame(columns=['Referencia', 'Cantidad'])
+                        firebase_borrar_df('envases', 'df_transito_envases')
+                        st.rerun()
+
+        col_ef1, col_ef2 = st.columns([2, 3])
+        with col_ef1:
+            filtro_ext = st.selectbox("Estado:", ["Todos", "🔴 Solo alertas", "🟡 Aviso", "🟢 Solo OK"], key="fenv_ext")
+        with col_ef2:
+            buscar_ext = st.text_input("Buscar referencia:", key="benv_ext")
+
+        vista_ext = df_ext.copy()
+        if filtro_ext == "🔴 Solo alertas":
+            vista_ext = vista_ext[vista_ext['Estado'].str.startswith("🔴")]
+        elif filtro_ext == "🟡 Aviso":
+            vista_ext = vista_ext[vista_ext['Estado'].str.startswith("🟡")]
+        elif filtro_ext == "🟢 Solo OK":
+            vista_ext = vista_ext[vista_ext['Estado'].str.startswith("🟢")]
+        if buscar_ext:
+            vista_ext = vista_ext[vista_ext['Referencia'].str.contains(buscar_ext, case=False, na=False)]
+
+        n_rojo_e = (df_ext['Estado'].str.startswith("🔴")).sum()
+        n_amar_e = (df_ext['Estado'].str.startswith("🟡")).sum()
+        me1, me2, me3, me4 = st.columns(4)
+        me1.metric("Total", len(df_ext))
+        me2.metric("🔴 Alertas", n_rojo_e)
+        me3.metric("🟡 Avisos", n_amar_e)
+        me4.metric("🟢 OK", len(df_ext) - n_rojo_e - n_amar_e)
+
+        cols_ext = ['Referencia', 'Descripcion']
+        if 'Tipo' in vista_ext.columns and vista_ext['Tipo'].astype(str).str.strip().ne('').any():
+            cols_ext.append('Tipo')
+        cols_ext += ['CDM_dia', 'Stk_ext', 'Transito_u', 'SS', 'Pedido', 'Estado']
+        _render_env_table(vista_ext, cols_ext)
+
+        st.download_button(
+            "📥 Exportar a Excel",
+            exportar_excel_prof(vista_ext[[c for c in cols_ext if c in vista_ext.columns]], "Externo"),
+            "envases_externo.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+
+    # ══════════════════════════════════════
+    # TAB 2: PLAZA
+    # ══════════════════════════════════════
+    with tab_plaza:
+        st.markdown("**Stock en Plaza** (fábrica). Cartón desde ERP (AL6). Envase pool y palet: stock manual. SS = Stock de Seguridad del maestro.")
+
+        if st.session_state.df_stock_erp is not None:
+            s_al6 = st.session_state.df_stock_erp.copy()
+            s_al6 = s_al6[s_al6['Almacen'].isin(ALMACENES_INT)]
+            stock_al6 = s_al6.groupby('Referencia')['Cantidad'].sum().reset_index().rename(columns={'Cantidad': 'Stock_al6'})
+        else:
+            stock_al6 = pd.DataFrame(columns=['Referencia', 'Stock_al6'])
+
+        stock_manual = st.session_state.df_stock_plaza.copy() if st.session_state.df_stock_plaza is not None else pd.DataFrame(columns=['Referencia', 'Stock_manual'])
+
+        df_plaza = maestro_env.copy()
+        df_plaza = df_plaza.merge(stock_al6,   on='Referencia', how='left')
+        df_plaza = df_plaza.merge(stock_manual, on='Referencia', how='left')
+        df_plaza['Stock_al6']    = pd.to_numeric(df_plaza['Stock_al6'],    errors='coerce').fillna(0).astype(int)
+        df_plaza['Stock_manual'] = pd.to_numeric(df_plaza['Stock_manual'], errors='coerce').fillna(0).astype(int)
+
+        def _es_carton(tipo):
+            t = str(tipo).upper()
+            return 'CARTON' in t or 'CARTÓN' in t
+
+        df_plaza['Stock_plaza'] = df_plaza.apply(
+            lambda r: int(r['Stock_al6']) if _es_carton(r.get('Tipo', '')) else int(r['Stock_manual']), axis=1
+        )
+
+        def _alerta_plaza(row):
+            stock = int(row['Stock_plaza'])
+            ss    = int(row['Stock_Seguridad'])
+            if stock < ss:
+                pedido = max(0, ss - stock)
+                color  = "#721c24" if stock < ss / 2 else "#856404"
+                return stock, ss, pedido, f"{'🔴' if color == '#721c24' else '🟡'} PEDIR: {pedido}", color
+            return stock, ss, 0, "🟢 OK", "#155724"
+
+        df_plaza[['Stk_plaza', 'SS_plaza', 'Pedido_p', 'Estado_p', 'Color_p']] = df_plaza.apply(
+            lambda r: pd.Series(_alerta_plaza(r)), axis=1
+        )
+
+        with st.expander("✏️ Introducir stock manual (envase pool y palets)"):
+            st.caption("Los tipos Cartón se leen del ERP automáticamente. Introduce el stock de pool y palets.")
+            mask_manual = ~df_plaza['Tipo'].apply(_es_carton)
+            refs_manual = df_plaza[mask_manual]['Referencia'].tolist()
+
+            if refs_manual:
+                edit_rows = []
+                for _, row in df_plaza[mask_manual].iterrows():
+                    edit_rows.append({'Referencia': row['Referencia'], 'Descripcion': str(row.get('Descripcion', '')), 'Tipo': str(row.get('Tipo', '')), 'Stock_actual': int(row['Stock_manual'])})
+                edit_df = pd.DataFrame(edit_rows)
+
+                edited = st.data_editor(
+                    edit_df,
+                    column_config={
+                        'Referencia':   st.column_config.TextColumn("Referencia", disabled=True),
+                        'Descripcion':  st.column_config.TextColumn("Descripción", disabled=True),
+                        'Tipo':         st.column_config.TextColumn("Tipo", disabled=True),
+                        'Stock_actual': st.column_config.NumberColumn("Stock actual", min_value=0, step=1),
+                    },
+                    use_container_width=True,
+                    hide_index=True,
+                    key="editor_stock_plaza"
+                )
+
+                if st.button("💾 Guardar stock plaza", key="btn_save_plaza"):
+                    new_stock = edited[['Referencia', 'Stock_actual']].rename(columns={'Stock_actual': 'Stock_manual'})
+                    new_stock['Referencia']   = new_stock['Referencia'].astype(str).str.strip().str.upper()
+                    new_stock['Stock_manual'] = pd.to_numeric(new_stock['Stock_manual'], errors='coerce').fillna(0).astype(int)
+                    st.session_state.df_stock_plaza = new_stock
+                    df_a_firebase(new_stock, 'envases', 'df_stock_plaza')
+                    st.success("✅ Stock plaza guardado.")
+                    st.rerun()
+            else:
+                st.info("Todas las referencias son de tipo Cartón (stock desde ERP).")
+
+        col_fp1, col_fp2 = st.columns([2, 3])
+        with col_fp1:
+            filtro_plaza = st.selectbox("Estado:", ["Todos", "🔴 Solo alertas", "🟡 Aviso", "🟢 Solo OK"], key="fenv_plaza")
+        with col_fp2:
+            buscar_plaza = st.text_input("Buscar referencia:", key="benv_plaza")
+
+        vista_plaza = df_plaza.copy()
+        if filtro_plaza == "🔴 Solo alertas":
+            vista_plaza = vista_plaza[vista_plaza['Estado_p'].str.startswith("🔴")]
+        elif filtro_plaza == "🟡 Aviso":
+            vista_plaza = vista_plaza[vista_plaza['Estado_p'].str.startswith("🟡")]
+        elif filtro_plaza == "🟢 Solo OK":
+            vista_plaza = vista_plaza[vista_plaza['Estado_p'].str.startswith("🟢")]
+        if buscar_plaza:
+            vista_plaza = vista_plaza[vista_plaza['Referencia'].str.contains(buscar_plaza, case=False, na=False)]
+
+        n_rojo_p = (df_plaza['Estado_p'].str.startswith("🔴")).sum()
+        n_amar_p = (df_plaza['Estado_p'].str.startswith("🟡")).sum()
+        mp1, mp2, mp3, mp4 = st.columns(4)
+        mp1.metric("Total", len(df_plaza))
+        mp2.metric("🔴 Alertas", n_rojo_p)
+        mp3.metric("🟡 Avisos", n_amar_p)
+        mp4.metric("🟢 OK", len(df_plaza) - n_rojo_p - n_amar_p)
+
+        cols_plaza = ['Referencia', 'Descripcion']
+        if 'Tipo' in vista_plaza.columns and vista_plaza['Tipo'].astype(str).str.strip().ne('').any():
+            cols_plaza.append('Tipo')
+        cols_plaza += ['Stk_plaza', 'SS_plaza', 'Pedido_p', 'Estado_p']
+        _render_env_table(vista_plaza, cols_plaza, color_col='Color_p', estado_col='Estado_p', pedido_col='Pedido_p')
+
+        exp_cols = [c for c in cols_plaza if c in vista_plaza.columns]
+        st.download_button(
+            "📥 Exportar a Excel",
+            exportar_excel_prof(vista_plaza[exp_cols].rename(columns={'Estado_p': 'Estado', 'Pedido_p': 'Pedido', 'Stk_plaza': 'Stock', 'SS_plaza': 'SS'}), "Plaza"),
+            "envases_plaza.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+
 
 # ══════════════════════════════════════════════
 # MÓDULO 3: TRÁNSITO
