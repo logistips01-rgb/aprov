@@ -1839,13 +1839,18 @@ elif menu == "📦 Envases":
             s_ext = st.session_state.df_stock_erp.copy()
             s_ext = s_ext[s_ext['Almacen'].isin(ALMACENES_MERCA | ALMACENES_TXT | ALMACENES_AVITRANS)]
             stock_ext = s_ext.groupby('Referencia')['Cantidad'].sum().reset_index().rename(columns={'Cantidad': 'Stock_ext'})
+            if stock_ext.empty:
+                st.info("ℹ️ No hay referencias de envases en TXT / ARENTO / AVITRANS en el archivo ERP cargado.")
         else:
             stock_ext = pd.DataFrame(columns=['Referencia', 'Stock_ext'])
+            st.warning("⚠️ Sin stock ERP: ve a **Cargar Archivos** y sincroniza para ver stocks externos.")
 
         df_ext = maestro_env.copy()
         # CDM y stock en huecos (unidades / Unidades_Palet)
         df_ext['CDM_dia'] = ((df_ext['Ventas_mes'] / 24) / df_ext['Unidades_palet']).round(1)
         df_ext['SS']      = (df_ext['CDM_dia'] * df_ext['Lead_time']).apply(math.ceil)
+        if df_ext['CDM_dia'].sum() == 0:
+            st.info("ℹ️ CDM = 0 en todas las referencias. Añade la columna **Ventas_mes** en el maestro de envases.")
         df_ext = df_ext.merge(stock_ext, on='Referencia', how='left')
         stk_u = pd.to_numeric(df_ext['Stock_ext'], errors='coerce').fillna(0)
         df_ext['Stk_ext'] = (stk_u / df_ext['Unidades_palet']).apply(math.floor).astype(int)
@@ -1938,54 +1943,25 @@ elif menu == "📦 Envases":
     with tab_plaza:
         st.markdown("**Stock en Plaza** (fábrica). Cartón desde ERP (AL6). Envase pool y palet: stock manual. SS = Stock de Seguridad del maestro.")
 
-        if st.session_state.df_stock_erp is not None:
-            s_al6 = st.session_state.df_stock_erp.copy()
-            s_al6 = s_al6[s_al6['Almacen'].isin(ALMACENES_INT)]
-            stock_al6 = s_al6.groupby('Referencia')['Cantidad'].sum().reset_index().rename(columns={'Cantidad': 'Stock_al6'})
-        else:
-            stock_al6 = pd.DataFrame(columns=['Referencia', 'Stock_al6'])
-
-        stock_manual = st.session_state.df_stock_plaza.copy() if st.session_state.df_stock_plaza is not None else pd.DataFrame(columns=['Referencia', 'Stock_manual'])
-
-        df_plaza = maestro_env.copy()
-        df_plaza = df_plaza.merge(stock_al6,   on='Referencia', how='left')
-        df_plaza = df_plaza.merge(stock_manual, on='Referencia', how='left')
-        al6_u    = pd.to_numeric(df_plaza['Stock_al6'],    errors='coerce').fillna(0)
-        manual_h = pd.to_numeric(df_plaza['Stock_manual'], errors='coerce').fillna(0)
-        # Convertir unidades ERP → huecos
-        df_plaza['Stk_al6_h']    = (al6_u / df_plaza['Unidades_palet']).apply(math.floor).astype(int)
-        # Manual: el usuario introduce directamente en huecos
-        df_plaza['Stk_manual_h'] = manual_h.astype(int)
-
         def _es_carton(tipo):
             return str(tipo).strip().upper() == 'ERP'
 
-        df_plaza['Stock_plaza'] = df_plaza.apply(
-            lambda r: int(r['Stk_al6_h']) if _es_carton(r.get('Tipo', '')) else int(r['Stk_manual_h']), axis=1
-        )
+        # ── Editor PRIMERO: al guardar actualiza session_state antes del cómputo ──
+        with st.expander("✏️ Introducir stock manual (envase pool y palets)", expanded=True):
+            st.caption("Introduce el stock actual de pool y palets en huecos. Los de tipo ERP se leen del archivo de stock.")
+            mask_m = ~maestro_env['Tipo'].apply(_es_carton)
+            refs_m = maestro_env[mask_m]['Referencia'].tolist()
 
-        def _alerta_plaza(row):
-            stock = int(row['Stock_plaza'])
-            ss    = int(row['Stock_seguridad'])
-            if stock < ss:
-                pedido = max(0, ss - stock)
-                color  = "#721c24" if stock < ss / 2 else "#856404"
-                return stock, ss, pedido, f"{'🔴' if color == '#721c24' else '🟡'} PEDIR: {pedido}", color
-            return stock, ss, 0, "🟢 OK", "#155724"
+            if refs_m:
+                cur = {}
+                if st.session_state.df_stock_plaza is not None:
+                    for _, r in st.session_state.df_stock_plaza.iterrows():
+                        cur[str(r['Referencia']).strip().upper()] = int(r['Stock_manual'])
 
-        df_plaza[['Stk_plaza', 'SS_plaza', 'Pedido_p', 'Estado_p', 'Color_p']] = df_plaza.apply(
-            lambda r: pd.Series(_alerta_plaza(r)), axis=1
-        )
-
-        with st.expander("✏️ Introducir stock manual (envase pool y palets)"):
-            st.caption("Los tipos Cartón se leen del ERP automáticamente. Introduce el stock de pool y palets.")
-            mask_manual = ~df_plaza['Tipo'].apply(_es_carton)
-            refs_manual = df_plaza[mask_manual]['Referencia'].tolist()
-
-            if refs_manual:
                 edit_rows = []
-                for _, row in df_plaza[mask_manual].iterrows():
-                    edit_rows.append({'Referencia': row['Referencia'], 'Descripcion': str(row.get('Descripcion', '')), 'Tipo': str(row.get('Tipo', '')), 'Huecos': int(row['Stk_manual_h'])})
+                for _, row in maestro_env[mask_m].iterrows():
+                    ref = str(row['Referencia']).strip().upper()
+                    edit_rows.append({'Referencia': ref, 'Descripcion': str(row.get('Descripcion', '')), 'Tipo': str(row.get('Tipo', '')), 'Huecos': cur.get(ref, 0)})
                 edit_df = pd.DataFrame(edit_rows)
 
                 edited = st.data_editor(
@@ -2008,9 +1984,43 @@ elif menu == "📦 Envases":
                     st.session_state.df_stock_plaza = new_stock
                     df_a_firebase(new_stock, 'envases', 'df_stock_plaza')
                     st.success("✅ Stock plaza guardado.")
-                    st.rerun()
             else:
-                st.info("Todas las referencias son de tipo Cartón (stock desde ERP).")
+                st.info("Todas las referencias son de tipo ERP (stock desde AL6).")
+
+        # ── Ahora el cómputo usa session_state ya actualizado ──────────────────
+        if st.session_state.df_stock_erp is not None:
+            s_al6 = st.session_state.df_stock_erp.copy()
+            s_al6 = s_al6[s_al6['Almacen'].isin(ALMACENES_INT)]
+            stock_al6 = s_al6.groupby('Referencia')['Cantidad'].sum().reset_index().rename(columns={'Cantidad': 'Stock_al6'})
+        else:
+            stock_al6 = pd.DataFrame(columns=['Referencia', 'Stock_al6'])
+
+        stock_manual = st.session_state.df_stock_plaza.copy() if st.session_state.df_stock_plaza is not None else pd.DataFrame(columns=['Referencia', 'Stock_manual'])
+
+        df_plaza = maestro_env.copy()
+        df_plaza = df_plaza.merge(stock_al6,   on='Referencia', how='left')
+        df_plaza = df_plaza.merge(stock_manual, on='Referencia', how='left')
+        al6_u    = pd.to_numeric(df_plaza['Stock_al6'],    errors='coerce').fillna(0)
+        manual_h = pd.to_numeric(df_plaza['Stock_manual'], errors='coerce').fillna(0)
+        df_plaza['Stk_al6_h']    = (al6_u / df_plaza['Unidades_palet']).apply(math.floor).astype(int)
+        df_plaza['Stk_manual_h'] = manual_h.astype(int)
+
+        df_plaza['Stock_plaza'] = df_plaza.apply(
+            lambda r: int(r['Stk_al6_h']) if _es_carton(r.get('Tipo', '')) else int(r['Stk_manual_h']), axis=1
+        )
+
+        def _alerta_plaza(row):
+            stock = int(row['Stock_plaza'])
+            ss    = int(row['Stock_seguridad'])
+            if stock < ss:
+                pedido = max(0, ss - stock)
+                color  = "#721c24" if stock < ss / 2 else "#856404"
+                return stock, ss, pedido, f"{'🔴' if color == '#721c24' else '🟡'} PEDIR: {pedido}", color
+            return stock, ss, 0, "🟢 OK", "#155724"
+
+        df_plaza[['Stk_plaza', 'SS_plaza', 'Pedido_p', 'Estado_p', 'Color_p']] = df_plaza.apply(
+            lambda r: pd.Series(_alerta_plaza(r)), axis=1
+        )
 
         col_fp1, col_fp2 = st.columns([2, 3])
         with col_fp1:
