@@ -1676,8 +1676,8 @@ elif menu == "🎯 SS Óptimo":
             dias_validos = grupo[grupo['Palets_dia'] <= umbral]
             max_valido = dias_validos['Palets_dia'].max() if not dias_validos.empty else cdm_pal
 
-            lead = int(info['Lead_time'])
-            ss_sugerido = math.ceil((max_valido - cdm_pal) * lead)
+            lead = float(info['Lead_time'])
+            ss_sugerido = math.ceil(cdm_pal + (max_valido - cdm_pal) * lead)
             ss_sugerido = max(ss_sugerido, 0)
             ss_actual = int(info['Stock_seguridad'])
             diferencia = ss_actual - ss_sugerido
@@ -1686,7 +1686,7 @@ elif menu == "🎯 SS Óptimo":
                 'Referencia':        ref,
                 'Descripcion':       str(info['Descripcion'])[:35],
                 'CDM (pal)':         round(cdm_pal, 1),
-                'Lead time':         lead,
+                'Lead time':         round(lead, 1),
                 'Max día válido':    round(max_valido, 1),
                 'SS Actual (pal)':   ss_actual,
                 'SS Sugerido (pal)': ss_sugerido,
