@@ -1951,12 +1951,11 @@ elif menu == "📦 Envases":
         df_plaza = df_plaza.merge(stock_al6,   on='Referencia', how='left')
         df_plaza = df_plaza.merge(stock_manual, on='Referencia', how='left')
         al6_u    = pd.to_numeric(df_plaza['Stock_al6'],    errors='coerce').fillna(0)
-        manual_u = pd.to_numeric(df_plaza['Stock_manual'], errors='coerce').fillna(0)
+        manual_h = pd.to_numeric(df_plaza['Stock_manual'], errors='coerce').fillna(0)
         # Convertir unidades ERP → huecos
-        df_plaza['Stk_al6_h']    = (al6_u    / df_plaza['Unidades_palet']).apply(math.floor).astype(int)
-        # Manual: el usuario introduce unidades, convertimos a huecos
-        df_plaza['Stk_manual_h'] = (manual_u / df_plaza['Unidades_palet']).apply(math.floor).astype(int)
-        df_plaza['Stock_manual'] = manual_u.astype(int)  # guardar unidades originales para el editor
+        df_plaza['Stk_al6_h']    = (al6_u / df_plaza['Unidades_palet']).apply(math.floor).astype(int)
+        # Manual: el usuario introduce directamente en huecos
+        df_plaza['Stk_manual_h'] = manual_h.astype(int)
 
         def _es_carton(tipo):
             return str(tipo).strip().upper() == 'ERP'
@@ -1986,20 +1985,16 @@ elif menu == "📦 Envases":
             if refs_manual:
                 edit_rows = []
                 for _, row in df_plaza[mask_manual].iterrows():
-                    up = float(row.get('Unidades_palet', 1)) or 1
-                    ud = int(row['Stock_manual'])
-                    edit_rows.append({'Referencia': row['Referencia'], 'Descripcion': str(row.get('Descripcion', '')), 'Tipo': str(row.get('Tipo', '')), 'Unidades_palet': int(up), 'Stock_ud': ud, 'Huecos': math.floor(ud / up)})
+                    edit_rows.append({'Referencia': row['Referencia'], 'Descripcion': str(row.get('Descripcion', '')), 'Tipo': str(row.get('Tipo', '')), 'Huecos': int(row['Stk_manual_h'])})
                 edit_df = pd.DataFrame(edit_rows)
 
                 edited = st.data_editor(
                     edit_df,
                     column_config={
-                        'Referencia':    st.column_config.TextColumn("Referencia", disabled=True),
-                        'Descripcion':   st.column_config.TextColumn("Descripción", disabled=True),
-                        'Tipo':          st.column_config.TextColumn("Tipo", disabled=True),
-                        'Unidades_palet':st.column_config.NumberColumn("Ud/Hueco", disabled=True),
-                        'Stock_ud':      st.column_config.NumberColumn("Stock (ud)", min_value=0, step=1),
-                        'Huecos':        st.column_config.NumberColumn("Huecos", disabled=True),
+                        'Referencia':  st.column_config.TextColumn("Referencia", disabled=True),
+                        'Descripcion': st.column_config.TextColumn("Descripción", disabled=True),
+                        'Tipo':        st.column_config.TextColumn("Tipo", disabled=True),
+                        'Huecos':      st.column_config.NumberColumn("Huecos actuales", min_value=0, step=1),
                     },
                     use_container_width=True,
                     hide_index=True,
@@ -2007,7 +2002,7 @@ elif menu == "📦 Envases":
                 )
 
                 if st.button("💾 Guardar stock plaza", key="btn_save_plaza"):
-                    new_stock = edited[['Referencia', 'Stock_ud']].rename(columns={'Stock_ud': 'Stock_manual'})
+                    new_stock = edited[['Referencia', 'Huecos']].rename(columns={'Huecos': 'Stock_manual'})
                     new_stock['Referencia']   = new_stock['Referencia'].astype(str).str.strip().str.upper()
                     new_stock['Stock_manual'] = pd.to_numeric(new_stock['Stock_manual'], errors='coerce').fillna(0).astype(int)
                     st.session_state.df_stock_plaza = new_stock
