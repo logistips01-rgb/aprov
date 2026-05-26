@@ -1402,25 +1402,40 @@ elif menu == "📊 Dashboard":
 
     # --- Variación vs semana anterior (desde Firebase snapshots) ---
     df['Var_semana'] = 0
-    try:
-        from datetime import timedelta
-        today = datetime.now().date()
-        stock_ant = None
-        for days_back in range(5, 10):
-            fecha_try = (today - timedelta(days=days_back)).strftime('%Y-%m-%d')
-            snap, _err = firebase_a_df('bandejas_snapshots', fecha_try)
-            if snap is not None and not snap.empty and 'Referencia' in snap.columns:
-                stock_ant = snap.copy()
-                break
-        if stock_ant is not None:
-            u_p = stock_ant['Unidades_palet'].clip(lower=1) if 'Unidades_palet' in stock_ant.columns else 1
-            stock_ant['pal_ant'] = (pd.to_numeric(stock_ant.get('Stock_interno', 0), errors='coerce').fillna(0) / u_p).round()
-            stock_ant = stock_ant[['Referencia', 'pal_ant']]
-            df = df.merge(stock_ant, on='Referencia', how='left')
-            df['Var_semana'] = (df['Pal_Interno'] - df['pal_ant'].fillna(df['Pal_Interno'])).round().astype(int)
-            df = df.drop(columns=['pal_ant'])
-    except Exception:
-        pass
+    if st.session_state.df_consumos is not None:
+        try:
+            from datetime import timedelta
+            today = datetime.now().date()
+            cons_vs = st.session_state.df_consumos.copy()
+            cons_vs['Fecha'] = pd.to_datetime(cons_vs['Fecha'], errors='coerce').dt.normalize()
+            cons_vs['Cantidad'] = pd.to_numeric(cons_vs['Cantidad'], errors='coerce').fillna(0).abs()
+
+            hoy = pd.Timestamp(today)
+            esta_semana = cons_vs[cons_vs['Fecha'] >= hoy - timedelta(days=7)]
+            sem_anterior = cons_vs[(cons_vs['Fecha'] >= hoy - timedelta(days=14)) & (cons_vs['Fecha'] < hoy - timedelta(days=7))]
+
+            cons_esta = esta_semana.groupby('Referencia')['Cantidad'].sum().reset_index().rename(columns={'Cantidad': 'cons_esta'})
+            cons_ant  = sem_anterior.groupby('Referencia')['Cantidad'].sum().reset_index().rename(columns={'Cantidad': 'cons_ant'})
+
+            df = df.merge(cons_esta, on='Referencia', how='left')
+            df = df.merge(cons_ant,  on='Referencia', how='left')
+            df['cons_esta'] = df['cons_esta'].fillna(0)
+            df['cons_ant']  = df['cons_ant'].fillna(0)
+
+            u_p_vs = df['Unidades_palet'].clip(lower=1)
+            pal_esta = df['cons_esta'] / u_p_vs
+            pal_ant  = df['cons_ant']  / u_p_vs
+
+            df['Var_semana'] = (
+                ((pal_esta - pal_ant) / pal_ant.clip(lower=0.01) * 100)
+                .round().fillna(0).astype(int)
+            )
+            df['Var_semana'] = df.apply(
+                lambda r: 0 if r['cons_ant'] == 0 else r['Var_semana'], axis=1
+            )
+            df = df.drop(columns=['cons_esta', 'cons_ant'])
+        except Exception:
+            pass
 
     # --- Filtros rápidos ---
     col1, col2, col3 = st.columns(3)
