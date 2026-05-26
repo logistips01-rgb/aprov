@@ -1754,7 +1754,7 @@ elif menu == "📦 Envases":
     st.header("📦 Gestión de Envases, Cartones y Palets")
 
     with st.expander("📋 Maestro Envases", expanded=st.session_state.df_maestro_envases is None):
-        st.caption("Columnas requeridas: Referencia, Descripcion, Unidades_Palet, Lead_time, Stock_Seguridad | Opcionales: Tipo, Ventas_mes")
+        st.caption("Columnas requeridas: Referencia, Descripcion, Unidades_Palet, Lead_time, Stock_Seguridad | Opcionales: Tipo (ERP = stock desde AL6 · MANUAL = stock manual), Ventas_mes")
         f_menv = st.file_uploader("Subir Maestro Envases (.xlsx)", type="xlsx", key="fmenv")
         if f_menv and st.button("💾 Guardar Maestro Envases", key="btn_menv"):
             df_me = pd.read_excel(f_menv)
@@ -1959,8 +1959,7 @@ elif menu == "📦 Envases":
         df_plaza['Stock_manual'] = manual_u.astype(int)  # guardar unidades originales para el editor
 
         def _es_carton(tipo):
-            t = str(tipo).upper()
-            return 'CARTON' in t or 'CARTÓN' in t
+            return str(tipo).strip().upper() == 'ERP'
 
         df_plaza['Stock_plaza'] = df_plaza.apply(
             lambda r: int(r['Stk_al6_h']) if _es_carton(r.get('Tipo', '')) else int(r['Stk_manual_h']), axis=1
