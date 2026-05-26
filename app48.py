@@ -1754,17 +1754,18 @@ elif menu == "📦 Envases":
     st.header("📦 Gestión de Envases, Cartones y Palets")
 
     with st.expander("📋 Maestro Envases", expanded=st.session_state.df_maestro_envases is None):
-        st.caption("Columnas requeridas: Referencia, Descripcion, Lead_time, Stock_Seguridad | Opcionales: Tipo, Ventas_mes")
+        st.caption("Columnas requeridas: Referencia, Descripcion, Unidades_Palet, Lead_time, Stock_Seguridad | Opcionales: Tipo, Ventas_mes")
         f_menv = st.file_uploader("Subir Maestro Envases (.xlsx)", type="xlsx", key="fmenv")
         if f_menv and st.button("💾 Guardar Maestro Envases", key="btn_menv"):
             df_me = pd.read_excel(f_menv)
             df_me = normalizar_columnas(df_me)
-            faltan = columnas_faltantes(df_me, ['Referencia', 'Descripcion', 'Lead_time', 'Stock_Seguridad'], "Maestro Envases")
+            faltan = columnas_faltantes(df_me, ['Referencia', 'Descripcion', 'Unidades_Palet', 'Lead_time', 'Stock_Seguridad'], "Maestro Envases")
             if not faltan:
                 df_me['Referencia']      = df_me['Referencia'].astype(str).str.strip().str.upper()
+                df_me['Unidades_Palet']  = pd.to_numeric(df_me['Unidades_Palet'], errors='coerce').fillna(1).clip(lower=1)
                 df_me['Lead_time']       = pd.to_numeric(df_me['Lead_time'], errors='coerce').fillna(1)
                 df_me['Stock_Seguridad'] = pd.to_numeric(df_me['Stock_Seguridad'], errors='coerce').fillna(0)
-                df_me['Ventas_mes']      = pd.to_numeric(df_me.get('Ventas_mes', pd.Series(0, index=df_me.index)), errors='coerce').fillna(0) if 'Ventas_mes' in df_me.columns else 0
+                df_me['Ventas_mes']      = pd.to_numeric(df_me['Ventas_mes'], errors='coerce').fillna(0) if 'Ventas_mes' in df_me.columns else 0
                 if 'Tipo' not in df_me.columns:
                     df_me['Tipo'] = ''
                 st.session_state.df_maestro_envases = df_me
@@ -1772,7 +1773,7 @@ elif menu == "📦 Envases":
                 st.success(f"✅ {len(df_me)} referencias de envases guardadas.")
                 st.rerun()
         if st.session_state.df_maestro_envases is not None:
-            cols_show_me = [c for c in ['Referencia', 'Descripcion', 'Tipo', 'Lead_time', 'Stock_Seguridad', 'Ventas_mes'] if c in st.session_state.df_maestro_envases.columns]
+            cols_show_me = [c for c in ['Referencia', 'Descripcion', 'Tipo', 'Unidades_Palet', 'Lead_time', 'Stock_Seguridad', 'Ventas_mes'] if c in st.session_state.df_maestro_envases.columns]
             st.info(f"✅ {len(st.session_state.df_maestro_envases)} referencias cargadas.")
             st.dataframe(st.session_state.df_maestro_envases[cols_show_me], use_container_width=True)
 
@@ -1784,7 +1785,8 @@ elif menu == "📦 Envases":
     maestro_env['Referencia'] = maestro_env['Referencia'].astype(str).str.strip().str.upper()
     maestro_env['Lead_time']       = pd.to_numeric(maestro_env['Lead_time'], errors='coerce').fillna(1)
     maestro_env['Stock_Seguridad'] = pd.to_numeric(maestro_env['Stock_Seguridad'], errors='coerce').fillna(0)
-    maestro_env['Ventas_mes']      = pd.to_numeric(maestro_env.get('Ventas_mes', pd.Series(0, index=maestro_env.index)), errors='coerce').fillna(0) if 'Ventas_mes' in maestro_env.columns else 0
+    maestro_env['Ventas_mes']      = pd.to_numeric(maestro_env['Ventas_mes'], errors='coerce').fillna(0) if 'Ventas_mes' in maestro_env.columns else 0
+    maestro_env['Unidades_Palet']  = pd.to_numeric(maestro_env['Unidades_Palet'], errors='coerce').fillna(1).clip(lower=1) if 'Unidades_Palet' in maestro_env.columns else 1
     if 'Tipo' not in maestro_env.columns:
         maestro_env['Tipo'] = ''
 
@@ -1797,7 +1799,7 @@ elif menu == "📦 Envases":
             "#856404": ('background:#FEF9E7;color:#D68910;', '#F39C12'),
             "#155724": ('background:#EAFAF1;color:#1E8449;', '#27AE60'),
         }
-        col_labels = {estado_col: 'Estado', pedido_col: 'Pedido', 'Stk_ext': 'Stock Ext', 'Stk_plaza': 'Stock', 'SS': 'SS Ext', 'SS_plaza': 'SS', 'Transito_u': 'Tránsito', 'CDM_dia': 'CDM/día'}
+        col_labels = {estado_col: 'Estado', pedido_col: 'Pedido', 'Stk_ext': 'Huecos Ext', 'Stk_plaza': 'Huecos', 'SS': 'SS Ext', 'SS_plaza': 'SS', 'Transito_u': 'Tránsito', 'CDM_dia': 'CDM/día'}
         rows_html = ""
         for _, row in df_vista.iterrows():
             color = row.get(color_col, '#155724')
@@ -1841,26 +1843,30 @@ elif menu == "📦 Envases":
             stock_ext = pd.DataFrame(columns=['Referencia', 'Stock_ext'])
 
         df_ext = maestro_env.copy()
-        df_ext['CDM_dia'] = (df_ext['Ventas_mes'] / 24).round(1)
+        # CDM y stock en huecos (unidades / Unidades_Palet)
+        df_ext['CDM_dia'] = ((df_ext['Ventas_mes'] / 24) / df_ext['Unidades_Palet']).round(1)
         df_ext['SS']      = (df_ext['CDM_dia'] * df_ext['Lead_time']).apply(math.ceil)
         df_ext = df_ext.merge(stock_ext, on='Referencia', how='left')
-        df_ext['Stock_ext'] = pd.to_numeric(df_ext['Stock_ext'], errors='coerce').fillna(0).astype(int)
+        stk_u = pd.to_numeric(df_ext['Stock_ext'], errors='coerce').fillna(0)
+        df_ext['Stk_ext'] = (stk_u / df_ext['Unidades_Palet']).apply(math.floor).astype(int)
 
-        t_env = st.session_state.df_transito_envases.groupby('Referencia')['Cantidad'].sum().reset_index().rename(columns={'Cantidad': 'Transito_u'})
+        t_env = st.session_state.df_transito_envases.groupby('Referencia')['Cantidad'].sum().reset_index().rename(columns={'Cantidad': '_tr_u'})
         df_ext = df_ext.merge(t_env, on='Referencia', how='left')
-        df_ext['Transito_u'] = df_ext['Transito_u'].fillna(0).astype(int)
+        tr_u = pd.to_numeric(df_ext['_tr_u'], errors='coerce').fillna(0)
+        df_ext['Transito_u'] = (tr_u / df_ext['Unidades_Palet']).apply(math.floor).astype(int)
+        df_ext = df_ext.drop(columns=['_tr_u'], errors='ignore')
 
         def _alerta_ext(row):
-            stock = int(row['Stock_ext']) + int(row['Transito_u'])
+            stock = int(row['Stk_ext']) + int(row['Transito_u'])
             ss    = int(row['SS'])
             cdm   = row['CDM_dia']
             if cdm <= 0 and ss <= 0:
-                return stock, int(row['Stock_ext']), int(row['Transito_u']), ss, 0, "🟢 Sin consumo", "#155724"
+                return stock, int(row['Stk_ext']), int(row['Transito_u']), ss, 0, "🟢 Sin consumo", "#155724"
             if stock < ss:
                 pedido = max(0, math.ceil(ss - stock))
                 color  = "#721c24" if stock < ss / 2 else "#856404"
-                return stock, int(row['Stock_ext']), int(row['Transito_u']), ss, pedido, f"{'🔴' if color == '#721c24' else '🟡'} PEDIR: {pedido}", color
-            return stock, int(row['Stock_ext']), int(row['Transito_u']), ss, 0, "🟢 OK", "#155724"
+                return stock, int(row['Stk_ext']), int(row['Transito_u']), ss, pedido, f"{'🔴' if color == '#721c24' else '🟡'} PEDIR: {pedido}", color
+            return stock, int(row['Stk_ext']), int(row['Transito_u']), ss, 0, "🟢 OK", "#155724"
 
         df_ext[['Stk_total', 'Stk_ext', 'Transito_u', 'SS', 'Pedido', 'Estado', 'Color']] = df_ext.apply(
             lambda r: pd.Series(_alerta_ext(r)), axis=1
@@ -1944,15 +1950,20 @@ elif menu == "📦 Envases":
         df_plaza = maestro_env.copy()
         df_plaza = df_plaza.merge(stock_al6,   on='Referencia', how='left')
         df_plaza = df_plaza.merge(stock_manual, on='Referencia', how='left')
-        df_plaza['Stock_al6']    = pd.to_numeric(df_plaza['Stock_al6'],    errors='coerce').fillna(0).astype(int)
-        df_plaza['Stock_manual'] = pd.to_numeric(df_plaza['Stock_manual'], errors='coerce').fillna(0).astype(int)
+        al6_u    = pd.to_numeric(df_plaza['Stock_al6'],    errors='coerce').fillna(0)
+        manual_u = pd.to_numeric(df_plaza['Stock_manual'], errors='coerce').fillna(0)
+        # Convertir unidades ERP → huecos
+        df_plaza['Stk_al6_h']    = (al6_u    / df_plaza['Unidades_Palet']).apply(math.floor).astype(int)
+        # Manual: el usuario introduce unidades, convertimos a huecos
+        df_plaza['Stk_manual_h'] = (manual_u / df_plaza['Unidades_Palet']).apply(math.floor).astype(int)
+        df_plaza['Stock_manual'] = manual_u.astype(int)  # guardar unidades originales para el editor
 
         def _es_carton(tipo):
             t = str(tipo).upper()
             return 'CARTON' in t or 'CARTÓN' in t
 
         df_plaza['Stock_plaza'] = df_plaza.apply(
-            lambda r: int(r['Stock_al6']) if _es_carton(r.get('Tipo', '')) else int(r['Stock_manual']), axis=1
+            lambda r: int(r['Stk_al6_h']) if _es_carton(r.get('Tipo', '')) else int(r['Stk_manual_h']), axis=1
         )
 
         def _alerta_plaza(row):
@@ -1976,16 +1987,20 @@ elif menu == "📦 Envases":
             if refs_manual:
                 edit_rows = []
                 for _, row in df_plaza[mask_manual].iterrows():
-                    edit_rows.append({'Referencia': row['Referencia'], 'Descripcion': str(row.get('Descripcion', '')), 'Tipo': str(row.get('Tipo', '')), 'Stock_actual': int(row['Stock_manual'])})
+                    up = float(row.get('Unidades_Palet', 1)) or 1
+                    ud = int(row['Stock_manual'])
+                    edit_rows.append({'Referencia': row['Referencia'], 'Descripcion': str(row.get('Descripcion', '')), 'Tipo': str(row.get('Tipo', '')), 'Unidades_Palet': int(up), 'Stock_ud': ud, 'Huecos': math.floor(ud / up)})
                 edit_df = pd.DataFrame(edit_rows)
 
                 edited = st.data_editor(
                     edit_df,
                     column_config={
-                        'Referencia':   st.column_config.TextColumn("Referencia", disabled=True),
-                        'Descripcion':  st.column_config.TextColumn("Descripción", disabled=True),
-                        'Tipo':         st.column_config.TextColumn("Tipo", disabled=True),
-                        'Stock_actual': st.column_config.NumberColumn("Stock actual", min_value=0, step=1),
+                        'Referencia':    st.column_config.TextColumn("Referencia", disabled=True),
+                        'Descripcion':   st.column_config.TextColumn("Descripción", disabled=True),
+                        'Tipo':          st.column_config.TextColumn("Tipo", disabled=True),
+                        'Unidades_Palet':st.column_config.NumberColumn("Ud/Hueco", disabled=True),
+                        'Stock_ud':      st.column_config.NumberColumn("Stock (ud)", min_value=0, step=1),
+                        'Huecos':        st.column_config.NumberColumn("Huecos", disabled=True),
                     },
                     use_container_width=True,
                     hide_index=True,
@@ -1993,7 +2008,7 @@ elif menu == "📦 Envases":
                 )
 
                 if st.button("💾 Guardar stock plaza", key="btn_save_plaza"):
-                    new_stock = edited[['Referencia', 'Stock_actual']].rename(columns={'Stock_actual': 'Stock_manual'})
+                    new_stock = edited[['Referencia', 'Stock_ud']].rename(columns={'Stock_ud': 'Stock_manual'})
                     new_stock['Referencia']   = new_stock['Referencia'].astype(str).str.strip().str.upper()
                     new_stock['Stock_manual'] = pd.to_numeric(new_stock['Stock_manual'], errors='coerce').fillna(0).astype(int)
                     st.session_state.df_stock_plaza = new_stock
