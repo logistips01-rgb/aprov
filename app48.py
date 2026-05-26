@@ -1350,12 +1350,6 @@ elif menu == "📊 Dashboard":
         situacion  = row.get('Situacion', 'ACTIVA')
         var_cdm    = row.get('Var_CDM', 0) or 0
 
-        # Ajustar CDM efectivo según variación de consumo reciente
-        # Solo se aplica si la variación supera ±15%
-        if abs(var_cdm) >= 15:
-            cdm = cdm * (1 + var_cdm / 100)
-            cdm = max(cdm, 0.01)
-
         pal_int       = round(row['Stock_interno']         / u_p)
         pal_merca     = round(row['Stock_merca']           / u_p)
         pal_txt       = round(row['Stock_txt']             / u_p)
@@ -1365,17 +1359,23 @@ elif menu == "📊 Dashboard":
         seg_pal       = round(seg)
         cdm_pal       = math.ceil(cdm)
 
+        # CDM efectivo para el pedido: ajustado por Var_CDM si supera ±15%
+        cdm_efectivo = cdm
+        if abs(var_cdm) >= 15:
+            cdm_efectivo = cdm * (1 + var_cdm / 100)
+            cdm_efectivo = max(cdm_efectivo, 0.01)
+
         # MERCA: stock operativo = Merca (ARENTO + CAMARA BANDEJAS F19)
         # ACTIVA/BAJA: stock operativo = Interno (AL6 + AL6 SGA)
         stock_op = pal_merca if situacion == 'MERCA' else pal_int
 
-        necesidad_bruta = cdm * lead
+        necesidad_bruta = cdm_efectivo * lead
         stock_final = stock_op + pal_transito + pal_transito2 - necesidad_bruta
 
         # Alerta: no llegamos al stock de seguridad
         if stock_final < seg:
             pedido = math.ceil(seg - stock_final + incremento)
-            dias_stock_actual = (stock_op / cdm) if cdm > 0 else 999
+            dias_stock_actual = (stock_op / cdm_efectivo) if cdm_efectivo > 0 else 999
             # Rojo si: ya estamos por debajo del stock de seguridad, o no llegamos al lead time
             if stock_op < seg or dias_stock_actual < lead:
                 return pal_int, pal_merca, pal_txt, pal_avitrans, pal_transito, pal_transito2, seg_pal, cdm_pal, f"🔴 COMPRAR: {pedido} Pal.", "#721c24"
