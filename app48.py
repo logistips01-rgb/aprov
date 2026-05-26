@@ -1126,9 +1126,9 @@ if menu == "📂 Cargar Archivos":
              .rename(columns={'Palets_dia': 'Cdm'})
         )
 
-        # --- DEBUG TEMPORAL: mostrar C12043 ---
-        ref_debug = 'C12043'
-        st.write("### 🔍 DEBUG C12043")
+        # --- DEBUG TEMPORAL: mostrar C12232 ---
+        ref_debug = 'C12232'
+        st.write("### 🔍 DEBUG C12232")
         c12_raw = c[c['Referencia'] == ref_debug]
         st.write(f"Filas en consumos: {len(c12_raw)}")
         st.write(f"Cantidad total (abs): {c12_raw['Cantidad'].sum()}")
