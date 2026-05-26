@@ -1767,12 +1767,15 @@ elif menu == "📦 Envases":
                 df_me['Stock_seguridad'] = pd.to_numeric(df_me['Stock_seguridad'], errors='coerce').fillna(0)
                 if 'Tipo' not in df_me.columns:
                     df_me['Tipo'] = ''
+                if 'Ref_compra' not in df_me.columns:
+                    df_me['Ref_compra'] = ''
+                df_me['Ref_compra'] = df_me['Ref_compra'].fillna('').astype(str).str.strip().str.upper()
                 st.session_state.df_maestro_envases = df_me
                 df_a_firebase(df_me, 'envases', 'df_maestro_envases')
                 st.success(f"✅ {len(df_me)} referencias de envases guardadas.")
                 st.rerun()
         if st.session_state.df_maestro_envases is not None:
-            cols_show_me = [c for c in ['Referencia', 'Descripcion', 'Tipo', 'Unidades_palet', 'Lead_time', 'Stock_seguridad'] if c in st.session_state.df_maestro_envases.columns]
+            cols_show_me = [c for c in ['Referencia', 'Descripcion', 'Tipo', 'Ref_compra', 'Unidades_palet', 'Lead_time', 'Stock_seguridad'] if c in st.session_state.df_maestro_envases.columns]
             st.info(f"✅ {len(st.session_state.df_maestro_envases)} referencias cargadas.")
             st.dataframe(st.session_state.df_maestro_envases[cols_show_me], use_container_width=True)
 
@@ -1787,6 +1790,9 @@ elif menu == "📦 Envases":
     maestro_env['Unidades_palet']  = pd.to_numeric(maestro_env['Unidades_palet'], errors='coerce').fillna(1).clip(lower=1) if 'Unidades_palet' in maestro_env.columns else 1
     if 'Tipo' not in maestro_env.columns:
         maestro_env['Tipo'] = ''
+    if 'Ref_compra' not in maestro_env.columns:
+        maestro_env['Ref_compra'] = ''
+    maestro_env['Ref_compra'] = maestro_env['Ref_compra'].fillna('').astype(str).str.strip().str.upper()
 
     tab_ext, tab_plaza = st.tabs(["🏭 Externo (TXT · ARENTO · AVITRANS)", "🏢 Plaza"])
 
@@ -1797,7 +1803,7 @@ elif menu == "📦 Envases":
             "#856404": ('background:#FEF9E7;color:#D68910;', '#F39C12'),
             "#155724": ('background:#EAFAF1;color:#1E8449;', '#27AE60'),
         }
-        col_labels = {estado_col: 'Estado', pedido_col: 'Pedido', 'Stk_ext': 'Huecos Ext', 'Stk_plaza': 'Huecos', 'SS': 'SS Ext', 'SS_plaza': 'SS', 'Transito_u': 'Tránsito', 'CDM_dia': 'CDM/día'}
+        col_labels = {estado_col: 'Estado', pedido_col: 'Pedido', 'Stk_ext': 'Huecos Ext', 'Stk_plaza': 'Huecos', 'SS': 'SS Ext', 'SS_plaza': 'SS', 'Transito_u': 'Tránsito', 'CDM_dia': 'CDM/día', 'Ref_compra': 'Ref. Compra'}
         rows_html = ""
         for _, row in df_vista.iterrows():
             color = row.get(color_col, '#155724')
@@ -1852,12 +1858,14 @@ elif menu == "📦 Envases":
             st.info("ℹ️ Sin datos de ventas. Sincroniza el módulo de Etiquetas para calcular el CDM.")
         df_ext['CDM_dia'] = ((ventas_total / 24) / df_ext['Unidades_palet']).round(1)
         df_ext['SS']      = (df_ext['CDM_dia'] * df_ext['Lead_time']).apply(math.ceil)
-        df_ext = df_ext.merge(stock_ext, on='Referencia', how='left')
+        df_ext['_lk'] = df_ext.apply(lambda r: r['Ref_compra'] if r['Ref_compra'] not in ('', 'NAN') else r['Referencia'], axis=1)
+        df_ext = df_ext.merge(stock_ext.rename(columns={'Referencia': '_lk'}), on='_lk', how='left').drop(columns=['_lk'])
         stk_u = pd.to_numeric(df_ext['Stock_ext'], errors='coerce').fillna(0)
         df_ext['Stk_ext'] = (stk_u / df_ext['Unidades_palet']).apply(math.floor).astype(int)
 
         t_env = st.session_state.df_transito_envases.groupby('Referencia')['Cantidad'].sum().reset_index().rename(columns={'Cantidad': '_tr_u'})
-        df_ext = df_ext.merge(t_env, on='Referencia', how='left')
+        df_ext['_lk'] = df_ext.apply(lambda r: r['Ref_compra'] if r['Ref_compra'] not in ('', 'NAN') else r['Referencia'], axis=1)
+        df_ext = df_ext.merge(t_env.rename(columns={'Referencia': '_lk'}), on='_lk', how='left').drop(columns=['_lk'])
         tr_u = pd.to_numeric(df_ext['_tr_u'], errors='coerce').fillna(0)
         df_ext['Transito_u'] = (tr_u / df_ext['Unidades_palet']).apply(math.floor).astype(int)
         df_ext = df_ext.drop(columns=['_tr_u'], errors='ignore')
@@ -1928,6 +1936,8 @@ elif menu == "📦 Envases":
         cols_ext = ['Referencia', 'Descripcion']
         if 'Tipo' in vista_ext.columns and vista_ext['Tipo'].astype(str).str.strip().ne('').any():
             cols_ext.append('Tipo')
+        if 'Ref_compra' in vista_ext.columns and vista_ext['Ref_compra'].astype(str).str.strip().ne('').any():
+            cols_ext.append('Ref_compra')
         cols_ext += ['CDM_dia', 'Stk_ext', 'Transito_u', 'SS', 'Pedido', 'Estado']
         _render_env_table(vista_ext, cols_ext)
 
@@ -1999,7 +2009,8 @@ elif menu == "📦 Envases":
         stock_manual = st.session_state.df_stock_plaza.copy() if st.session_state.df_stock_plaza is not None else pd.DataFrame(columns=['Referencia', 'Stock_manual'])
 
         df_plaza = maestro_env.copy()
-        df_plaza = df_plaza.merge(stock_al6,   on='Referencia', how='left')
+        df_plaza['_lk'] = df_plaza.apply(lambda r: r['Ref_compra'] if r['Ref_compra'] not in ('', 'NAN') else r['Referencia'], axis=1)
+        df_plaza = df_plaza.merge(stock_al6.rename(columns={'Referencia': '_lk'}), on='_lk', how='left').drop(columns=['_lk'])
         df_plaza = df_plaza.merge(stock_manual, on='Referencia', how='left')
         al6_u    = pd.to_numeric(df_plaza['Stock_al6'],    errors='coerce').fillna(0)
         manual_h = pd.to_numeric(df_plaza['Stock_manual'], errors='coerce').fillna(0)
@@ -2050,6 +2061,8 @@ elif menu == "📦 Envases":
         cols_plaza = ['Referencia', 'Descripcion']
         if 'Tipo' in vista_plaza.columns and vista_plaza['Tipo'].astype(str).str.strip().ne('').any():
             cols_plaza.append('Tipo')
+        if 'Ref_compra' in vista_plaza.columns and vista_plaza['Ref_compra'].astype(str).str.strip().ne('').any():
+            cols_plaza.append('Ref_compra')
         cols_plaza += ['Stk_plaza', 'SS_plaza', 'Pedido_p', 'Estado_p']
         _render_env_table(vista_plaza, cols_plaza, color_col='Color_p', estado_col='Estado_p', pedido_col='Pedido_p')
 
