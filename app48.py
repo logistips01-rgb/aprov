@@ -2013,12 +2013,15 @@ elif menu == "📦 Envases":
             s_al6 = st.session_state.df_stock_erp.copy()
             s_al6 = s_al6[s_al6['Almacen'].isin(ALMACENES_INT)]
             stock_al6 = s_al6.groupby('Referencia')['Cantidad'].sum().reset_index().rename(columns={'Cantidad': 'Stock_al6'})
+            stock_al6['Referencia'] = stock_al6['Referencia'].astype(str).str.strip().str.upper()
         else:
             stock_al6 = pd.DataFrame(columns=['Referencia', 'Stock_al6'])
 
         stock_manual = st.session_state.df_stock_plaza.copy() if st.session_state.df_stock_plaza is not None else pd.DataFrame(columns=['Referencia', 'Stock_manual'])
+        stock_manual['Referencia'] = stock_manual['Referencia'].astype(str).str.strip().str.upper()
 
         df_plaza = maestro_env.copy()
+        df_plaza['Referencia'] = df_plaza['Referencia'].astype(str).str.strip().str.upper()
         df_plaza['_lk'] = df_plaza.apply(lambda r: r['Ref_compra'] if r['Ref_compra'] not in ('', 'NAN') else r['Referencia'], axis=1)
         df_plaza = df_plaza.merge(stock_al6.rename(columns={'Referencia': '_lk'}), on='_lk', how='left').drop(columns=['_lk'])
         df_plaza = df_plaza.merge(stock_manual, on='Referencia', how='left')
