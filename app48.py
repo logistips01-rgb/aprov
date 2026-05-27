@@ -399,28 +399,14 @@ ALMACENES_VALIDOS  = ALMACENES_INT | ALMACENES_MERCA | ALMACENES_TXT | ALMACENES
 
 def preprocesar_stock_erp(df):
     """Adapta el archivo de stock del ERP al formato estándar de la app.
-    Conserva Almacen (agrupación alta: PLAZA, MERCAZARAGOZA...) como Almacen_agrup
-    y Ubicacion (específica: AL6, ARENTO...) como Almacen, para que bandejas y
-    envases puedan filtrar por el nivel que necesitan."""
+    Usa Ubicacion (AL6, ARENTO, TXT, AVITRANS...) como Almacen y filtra
+    solo los almacenes relevantes para bandejas y envases."""
     df = df.copy()
     if 'Ubicacion' in df.columns:
-        # Guardar agrupación de alto nivel antes de sobrescribir
-        if 'Almacen' in df.columns:
-            df['Almacen_agrup'] = (
-                df['Almacen']
-                .astype(str)
-                .str.replace(r'\s+', ' ', regex=True)
-                .str.strip()
-                .str.upper()
-            )
         df = df.drop(columns=['Almacen'], errors='ignore')
         df = df.rename(columns={'Ubicacion': 'Almacen'})
-    else:
-        df['Almacen_agrup'] = df['Almacen'] if 'Almacen' in df.columns else ''
-
     if 'Almacen' not in df.columns or 'Referencia' not in df.columns:
         return df
-
     df['Almacen'] = (
         df['Almacen']
         .astype(str)
@@ -428,13 +414,9 @@ def preprocesar_stock_erp(df):
         .str.strip()
         .str.upper()
     )
-
-    # Conservar filas relevantes para bandejas (por Ubicacion) O para envases (por Almacen_agrup)
-    ALMACENES_AGRUP_VALIDOS = {'PLAZA', 'MERCAZARAGOZA', 'ARENTO', 'TXT', 'AVITRANS', 'CASERFRI', 'CALIDAD', 'TRANSITO', 'USIETO'}
     VALIDOS_UPPER = {a.upper() for a in ALMACENES_VALIDOS}
-    df = df[df['Almacen'].isin(VALIDOS_UPPER) | df['Almacen_agrup'].isin(ALMACENES_AGRUP_VALIDOS)]
-
-    cols = [c for c in ['Referencia', 'Almacen', 'Almacen_agrup', 'Cantidad'] if c in df.columns]
+    df = df[df['Almacen'].isin(VALIDOS_UPPER)]
+    cols = [c for c in ['Referencia', 'Almacen', 'Cantidad'] if c in df.columns]
     return df[cols]
 
 
@@ -1862,12 +1844,11 @@ elif menu == "📦 Envases":
     # ══════════════════════════════════════
     with tab_ext:
         st.markdown("**Stock en almacenes externos** (MERCAZARAGOZA, ARENTO, TXT, AVITRANS). CDM = ventas mes / 24 días. SS = CDM × Lead time.")
-        _ALM_ENV_EXT_AGRUP = {'MERCAZARAGOZA', 'ARENTO', 'TXT', 'AVITRANS'}
+        _ALM_ENV_EXT = {'ARENTO', 'TXT', 'AVITRANS'}
 
         if st.session_state.df_stock_erp is not None:
             s_ext = st.session_state.df_stock_erp.copy()
-            _col_agrup_ext = 'Almacen_agrup' if 'Almacen_agrup' in s_ext.columns else 'Almacen'
-            s_ext = s_ext[s_ext[_col_agrup_ext].isin(_ALM_ENV_EXT_AGRUP)]
+            s_ext = s_ext[s_ext['Almacen'].isin(_ALM_ENV_EXT)]
             stock_ext = s_ext.groupby('Referencia')['Cantidad'].sum().reset_index().rename(columns={'Cantidad': 'Stock_ext'})
             if stock_ext.empty:
                 st.info("ℹ️ No hay referencias de envases en almacenes externos en el archivo ERP cargado.")
@@ -2027,8 +2008,7 @@ elif menu == "📦 Envases":
         # ── Ahora el cómputo usa session_state ya actualizado ──────────────────
         if st.session_state.df_stock_erp is not None:
             s_al6 = st.session_state.df_stock_erp.copy()
-            _col_agrup = 'Almacen_agrup' if 'Almacen_agrup' in s_al6.columns else 'Almacen'
-            s_al6 = s_al6[s_al6[_col_agrup] == 'PLAZA']
+            s_al6 = s_al6[s_al6['Almacen'].isin(ALMACENES_INT)]
             stock_al6 = s_al6.groupby('Referencia')['Cantidad'].sum().reset_index().rename(columns={'Cantidad': 'Stock_al6'})
             stock_al6['Referencia'] = stock_al6['Referencia'].astype(str).str.strip().str.upper()
         else:
