@@ -1518,6 +1518,8 @@ elif menu == "📊 Dashboard":
         'Pal_Interno', 'Pal_Merca', 'Pal_TXT', 'Pal_Avitrans', 'Pal_Transito', 'Pal_Transito2',
         'Pedido_pal', 'Estado'
     ]
+    if mostrar_bajas and 'Situacion' in vista.columns:
+        cols_mostrar.insert(cols_mostrar.index('Descripcion') + 1, 'Situacion')
     cols_mostrar = [c for c in cols_mostrar if c in vista.columns]
 
     def render_dashboard_table(df_vista, cols):
@@ -1528,6 +1530,7 @@ elif menu == "📊 Dashboard":
         }
         rows_html = ""
         for _, row in df_vista.iterrows():
+            es_baja = str(row.get('Situacion', 'ACTIVA')).strip().upper() == 'BAJA'
             color = row.get('Color', '#155724')
             estado_text = str(row.get('Estado', '')).replace('COMPRAR: ', 'Comprar ').replace('EN TRANSITO: ', 'Transito ').replace('INCREMENTO: ', 'Incr. ')
             for e in ['🔴 ', '🟡 ', '🟢 ', '(🚢 ', ')']:
@@ -1535,11 +1538,18 @@ elif menu == "📊 Dashboard":
             badge_style, dot_color = badge_map.get(color, badge_map["#155724"])
             dot = f'<span style="width:6px;height:6px;border-radius:50%;background:{dot_color};display:inline-block;margin-right:4px;"></span>'
             estado_badge = f'<span style="display:inline-flex;align-items:center;{badge_style}padding:3px 8px;border-radius:20px;font-size:11px;font-weight:500;">{dot}{estado_text}</span>'
-            row_bg = "background:#FEF9F9;" if color == "#721c24" else ("background:#F0FBF4;" if color == "#155724" else "")
+            row_bg = "background:#F4F6F7;opacity:0.75;" if es_baja else ("background:#FEF9F9;" if color == "#721c24" else ("background:#F0FBF4;" if color == "#155724" else ""))
+            cell_style_extra = "color:#999;" if es_baja else ""
             cells = ""
             for col in cols:
                 val = row.get(col, "")
-                if col == 'Estado':
+                if col == 'Situacion':
+                    if es_baja:
+                        badge = '<span style="background:#EAECEE;color:#707B7C;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:700;">BAJA</span>'
+                    else:
+                        badge = '<span style="background:#EAFAF1;color:#1E8449;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:700;">ACTIVA</span>'
+                    cells += f'<td style="padding:8px 12px;">{badge}</td>'
+                elif col == 'Estado':
                     cells += f'<td style="padding:8px 12px;">{estado_badge}</td>'
                 elif col == 'Var_CDM':
                     v = int(val) if val else 0
@@ -1563,11 +1573,11 @@ elif menu == "📊 Dashboard":
                 elif col == 'Oferta':
                     cells += f'<td style="padding:8px 12px;text-align:center;">{"🏷️" if val else ""}</td>'
                 elif col == 'Descripcion':
-                    cells += f'<td style="padding:8px 12px;color:#666;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="{val}">{str(val)[:30]}</td>'
+                    cells += f'<td style="padding:8px 12px;color:{"#aaa" if es_baja else "#666"};max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="{val}">{str(val)[:30]}</td>'
                 elif col == 'Referencia':
-                    cells += f'<td style="padding:8px 12px;font-weight:600;color:#2C3E50;">{val}</td>'
+                    cells += f'<td style="padding:8px 12px;font-weight:600;color:{"#aaa" if es_baja else "#2C3E50"};">{val}</td>'
                 else:
-                    cells += f'<td style="padding:8px 12px;color:#555;">{val}</td>'
+                    cells += f'<td style="padding:8px 12px;{cell_style_extra}color:{"#bbb" if es_baja else "#555"};">{val}</td>'
             rows_html += f'<tr style="border-bottom:1px solid #F2F3F4;{row_bg}">{cells}</tr>'
         # Calcular ancho mínimo por columna basado en contenido
         col_widths = {}
