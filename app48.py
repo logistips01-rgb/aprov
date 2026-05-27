@@ -1202,6 +1202,16 @@ if menu == "📂 Cargar Archivos":
             for _c, _def in [('Oferta', False), ('Oferta_inicio', pd.NaT), ('Oferta_fin', pd.NaT), ('Oferta_qty', 0)]:
                 final[_c] = _def
 
+        # Oferta_pronto: oferta empieza en ≤2 días (para avisar antes de pedir)
+        _fi2 = pd.to_datetime(final.get('Oferta_inicio', pd.NaT), errors='coerce')
+        _ff2 = pd.to_datetime(final.get('Oferta_fin',    pd.NaT), errors='coerce')
+        final['Oferta_pronto'] = (
+            _fi2.notna() & _ff2.notna() &
+            (final['Oferta'] == False) &
+            (_fi2 <= (_today + pd.Timedelta(days=2))) &
+            (_today <= _ff2)
+        ).fillna(False)
+
         st.session_state.df_final = final
         st.session_state.df_consumos = c
         guardar_snapshot(final, c)
@@ -1599,7 +1609,9 @@ elif menu == "📊 Dashboard":
                     style = "font-weight:600;color:#E74C3C;" if v > 0 else "color:#aaa;"
                     cells += f'<td style="padding:8px 12px;{style}">{v if v > 0 else "-"}</td>'
                 elif col == 'Oferta':
-                    cells += f'<td style="padding:8px 12px;text-align:center;">{"🏷️" if val else ""}</td>'
+                    _pronto = row.get('Oferta_pronto', False)
+                    _icono = '🏷️' if val else ('🔔' if _pronto else '')
+                    cells += f'<td style="padding:8px 12px;text-align:center;" title="{"Oferta activa" if val else ("Oferta en 2 días — revisar stock" if _pronto else "")}">{_icono}</td>'
                 elif col == 'Descripcion':
                     cells += f'<td style="padding:8px 12px;color:{"#aaa" if es_baja else "#666"};max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="{val}">{str(val)[:30]}</td>'
                 elif col == 'Referencia':
@@ -1690,6 +1702,12 @@ elif menu == "📊 Dashboard":
                 _fi = pd.to_datetime(st.session_state.df_final.get('Oferta_inicio', pd.NaT), errors='coerce')
                 _ff = pd.to_datetime(st.session_state.df_final.get('Oferta_fin',    pd.NaT), errors='coerce')
                 st.session_state.df_final['Oferta'] = (_fi.notna() & _ff.notna() & (_fi <= _today_of) & (_today_of <= _ff)).fillna(False)
+                st.session_state.df_final['Oferta_pronto'] = (
+                    _fi.notna() & _ff.notna() &
+                    (st.session_state.df_final['Oferta'] == False) &
+                    (_fi <= (_today_of + pd.Timedelta(days=2))) &
+                    (_today_of <= _ff)
+                ).fillna(False)
                 df_a_firebase(st.session_state.df_final, 'bandejas', 'df_final')
                 st.success("✅ Ofertas guardadas.")
                 st.rerun()
