@@ -502,6 +502,7 @@ if not st.session_state.firebase_cargado:
         ("df_maestro_envases", "envases",            "df_maestro_envases"),
         ("df_stock_plaza",     "envases",            "df_stock_plaza"),
         ("df_transito_envases","envases",            "df_transito_envases"),
+        ("df_oferta_envases",  "envases",            "df_oferta_envases"),
         # df_stock_erp NO se persiste en Firebase (archivo ERP muy grande)
         ("df_pedidos",         "pedidos",            "df_pedidos"),
         ("df_planificacion",   "planificacion",      "df_planificacion"),
@@ -586,6 +587,8 @@ if 'df_stock_plaza' not in st.session_state:
     st.session_state.df_stock_plaza = None
 if 'df_transito_envases' not in st.session_state:
     st.session_state.df_transito_envases = pd.DataFrame(columns=['Referencia', 'Cantidad'])
+if 'df_oferta_envases' not in st.session_state:
+    st.session_state.df_oferta_envases = None
 
 # ─────────────────────────────────────────────
 # BASE DE DATOS SQLITE
@@ -1886,6 +1889,32 @@ elif menu == "📦 Envases":
         maestro_env['Ref_compra'] = ''
     maestro_env['Ref_compra'] = maestro_env['Ref_compra'].fillna('').astype(str).str.strip().str.upper()
 
+    # ── Computar estado de oferta por referencia ───────────────────────────
+    _today_env = pd.Timestamp(datetime.now().date())
+    _raw_of_env = st.session_state.df_oferta_envases
+    if _raw_of_env is not None and not _raw_of_env.empty:
+        _oferta_env = _raw_of_env.copy()
+        for _c, _def in [('Oferta_inicio', pd.NaT), ('Oferta_fin', pd.NaT), ('Oferta_qty', 0)]:
+            if _c not in _oferta_env.columns:
+                _oferta_env[_c] = _def
+        _oferta_env['Oferta_inicio'] = pd.to_datetime(_oferta_env['Oferta_inicio'], errors='coerce')
+        _oferta_env['Oferta_fin']    = pd.to_datetime(_oferta_env['Oferta_fin'],    errors='coerce')
+        _has = _oferta_env['Oferta_inicio'].notna() & _oferta_env['Oferta_fin'].notna()
+        _oferta_env['Oferta'] = False
+        _oferta_env.loc[_has, 'Oferta'] = (
+            (_oferta_env.loc[_has, 'Oferta_inicio'] <= _today_env) &
+            (_today_env <= _oferta_env.loc[_has, 'Oferta_fin'])
+        )
+        _oferta_env['Oferta'] = _oferta_env['Oferta'].fillna(False).astype(bool)
+        _oferta_env['Oferta_pronto'] = (
+            _oferta_env['Oferta_inicio'].notna() & _oferta_env['Oferta_fin'].notna() &
+            (~_oferta_env['Oferta']) &
+            (_oferta_env['Oferta_inicio'] <= (_today_env + pd.Timedelta(days=2))) &
+            (_today_env <= _oferta_env['Oferta_fin'])
+        ).fillna(False)
+    else:
+        _oferta_env = pd.DataFrame(columns=['Referencia', 'Oferta', 'Oferta_inicio', 'Oferta_fin', 'Oferta_qty', 'Oferta_pronto'])
+
     tab_ext, tab_plaza = st.tabs(["🏭 Externo (TXT · ARENTO · AVITRANS)", "🏢 Plaza"])
 
     # ── Función render tabla HTML reutilizable ─────────────
@@ -1895,7 +1924,7 @@ elif menu == "📦 Envases":
             "#856404": ('background:#FEF9E7;color:#D68910;', '#F39C12'),
             "#155724": ('background:#EAFAF1;color:#1E8449;', '#27AE60'),
         }
-        col_labels = {estado_col: 'Estado', pedido_col: 'Pedido', 'Stk_ext': 'Huecos Ext', 'Stk_plaza': 'Huecos', 'SS': 'SS Ext', 'SS_plaza': 'SS', 'Transito_u': 'Tránsito', 'CDM_dia': 'CDM/día', 'Ref_compra': 'Ref. Compra'}
+        col_labels = {estado_col: 'Estado', pedido_col: 'Pedido', 'Stk_ext': 'Huecos Ext', 'Stk_plaza': 'Huecos', 'SS': 'SS Ext', 'SS_plaza': 'SS', 'Transito_u': 'Tránsito', 'CDM_dia': 'CDM/día', 'Ref_compra': 'Ref. Compra', 'Oferta': '🏷️'}
         rows_html = ""
         for _, row in df_vista.iterrows():
             color = row.get(color_col, '#155724')
@@ -1917,6 +1946,21 @@ elif menu == "📦 Envases":
                     cells += f'<td style="padding:8px 10px;color:#7F8C8D;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="{val}">{str(val)[:30]}</td>'
                 elif col == 'Referencia':
                     cells += f'<td style="padding:8px 10px;font-weight:700;color:#2C3E50;">{val}</td>'
+                elif col == 'Oferta':
+                    _pronto = row.get('Oferta_pronto', False)
+                    _icono = '🏷️' if val else ('🔔' if _pronto else '')
+                    if _pronto:
+                        try:
+                            _dias_rest = (pd.Timestamp(row.get('Oferta_inicio')) - pd.Timestamp(datetime.now().date())).days
+                            _aviso = 'mañana' if _dias_rest <= 1 else f'en {_dias_rest} días'
+                        except Exception:
+                            _aviso = 'próximamente'
+                        _tooltip = f'Oferta {_aviso} — revisar stock'
+                    elif val:
+                        _tooltip = 'Oferta activa'
+                    else:
+                        _tooltip = ''
+                    cells += f'<td style="padding:8px 10px;text-align:center;" title="{_tooltip}">{_icono}</td>'
                 else:
                     cells += f'<td style="padding:8px 10px;color:#555;">{val}</td>'
             rows_html += f'<tr style="border-bottom:1px solid #F2F3F4;{row_bg}">{cells}</tr>'
@@ -1962,6 +2006,17 @@ elif menu == "📦 Envases":
         tr_u = pd.to_numeric(df_ext['_tr_u'], errors='coerce').fillna(0)
         df_ext['Transito_u'] = (tr_u / df_ext['Unidades_palet']).apply(math.floor).astype(int)
         df_ext = df_ext.drop(columns=['_tr_u'], errors='ignore')
+
+        # Merge oferta
+        _of_cols_ext = [c for c in ['Referencia', 'Oferta', 'Oferta_inicio', 'Oferta_pronto'] if c in _oferta_env.columns]
+        if len(_of_cols_ext) > 1:
+            df_ext = df_ext.merge(_oferta_env[_of_cols_ext], on='Referencia', how='left')
+        for _oc, _od in [('Oferta', False), ('Oferta_pronto', False)]:
+            if _oc not in df_ext.columns:
+                df_ext[_oc] = _od
+            df_ext[_oc] = df_ext[_oc].fillna(_od)
+        if 'Oferta_inicio' not in df_ext.columns:
+            df_ext['Oferta_inicio'] = pd.NaT
 
         def _alerta_ext(row):
             stock = int(row['Stk_ext']) + int(row['Transito_u'])
@@ -2031,7 +2086,7 @@ elif menu == "📦 Envases":
             cols_ext.append('Tipo')
         if 'Ref_compra' in vista_ext.columns and vista_ext['Ref_compra'].astype(str).str.strip().ne('').any():
             cols_ext.append('Ref_compra')
-        cols_ext += ['CDM_dia', 'Stk_ext', 'Transito_u', 'SS', 'Pedido', 'Estado']
+        cols_ext += ['CDM_dia', 'Stk_ext', 'Transito_u', 'SS', 'Pedido', 'Estado', 'Oferta']
         _render_env_table(vista_ext, cols_ext)
 
         st.download_button(
@@ -2117,6 +2172,17 @@ elif menu == "📦 Envases":
             lambda r: int(r['Stk_al6_h']) if _es_carton(r.get('Tipo', '')) else int(r['Stk_manual_h']), axis=1
         )
 
+        # Merge oferta
+        _of_cols_plaza = [c for c in ['Referencia', 'Oferta', 'Oferta_inicio', 'Oferta_pronto'] if c in _oferta_env.columns]
+        if len(_of_cols_plaza) > 1:
+            df_plaza = df_plaza.merge(_oferta_env[_of_cols_plaza], on='Referencia', how='left')
+        for _oc, _od in [('Oferta', False), ('Oferta_pronto', False)]:
+            if _oc not in df_plaza.columns:
+                df_plaza[_oc] = _od
+            df_plaza[_oc] = df_plaza[_oc].fillna(_od)
+        if 'Oferta_inicio' not in df_plaza.columns:
+            df_plaza['Oferta_inicio'] = pd.NaT
+
         def _alerta_plaza(row):
             stock = int(row['Stock_plaza'])
             ss    = int(row['Stock_seguridad'])
@@ -2159,7 +2225,7 @@ elif menu == "📦 Envases":
             cols_plaza.append('Tipo')
         if 'Ref_compra' in vista_plaza.columns and vista_plaza['Ref_compra'].astype(str).str.strip().ne('').any():
             cols_plaza.append('Ref_compra')
-        cols_plaza += ['Stk_plaza', 'SS_plaza', 'Pedido_p', 'Estado_p']
+        cols_plaza += ['Stk_plaza', 'SS_plaza', 'Pedido_p', 'Estado_p', 'Oferta']
         _render_env_table(vista_plaza, cols_plaza, color_col='Color_p', estado_col='Estado_p', pedido_col='Pedido_p')
 
         exp_cols = [c for c in cols_plaza if c in vista_plaza.columns]
@@ -2169,6 +2235,56 @@ elif menu == "📦 Envases":
             "envases_plaza.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
+
+    # ── Gestión de ofertas envases ─────────────────────────────────────────
+    with st.expander("🏷️ Gestión de ofertas (envases)"):
+        st.caption("Define fechas de inicio/fin y cantidad de cajas de cada oferta. El indicador 🔔 avisa 2 días antes para que puedas pedir stock a tiempo.")
+        _today_of_env = pd.Timestamp(datetime.now().date())
+        df_of_env = maestro_env[['Referencia', 'Descripcion']].copy()
+        if st.session_state.df_oferta_envases is not None and not st.session_state.df_oferta_envases.empty:
+            _of_merge_cols = [c for c in ['Referencia', 'Oferta_inicio', 'Oferta_fin', 'Oferta_qty'] if c in st.session_state.df_oferta_envases.columns]
+            df_of_env = df_of_env.merge(st.session_state.df_oferta_envases[_of_merge_cols], on='Referencia', how='left')
+        for _c, _def in [('Oferta_inicio', pd.NaT), ('Oferta_fin', pd.NaT), ('Oferta_qty', 0)]:
+            if _c not in df_of_env.columns:
+                df_of_env[_c] = _def
+        df_of_env['Oferta_inicio'] = pd.to_datetime(df_of_env['Oferta_inicio'], errors='coerce')
+        df_of_env['Oferta_fin']    = pd.to_datetime(df_of_env['Oferta_fin'],    errors='coerce')
+        df_of_env['Oferta_qty']    = pd.to_numeric(df_of_env['Oferta_qty'],     errors='coerce').fillna(0).astype(int)
+
+        def _estado_of_env(row):
+            if pd.isna(row['Oferta_inicio']) or pd.isna(row['Oferta_fin']):
+                return '—'
+            if row['Oferta_fin'] < _today_of_env:
+                return '✅ Finalizada'
+            if row['Oferta_inicio'] <= _today_of_env:
+                return '🟠 Activa'
+            return f"🕐 Desde {row['Oferta_inicio'].strftime('%d/%m')}"
+        df_of_env['Estado'] = df_of_env.apply(_estado_of_env, axis=1)
+
+        edited_of_env = st.data_editor(
+            df_of_env,
+            column_config={
+                'Referencia':    st.column_config.TextColumn("Referencia", disabled=True),
+                'Descripcion':   st.column_config.TextColumn("Descripción", disabled=True),
+                'Oferta_inicio': st.column_config.DateColumn('Inicio oferta', format='DD/MM/YYYY'),
+                'Oferta_fin':    st.column_config.DateColumn('Fin oferta',    format='DD/MM/YYYY'),
+                'Oferta_qty':    st.column_config.NumberColumn('Cajas oferta', min_value=0, step=1,
+                                    help='Total de cajas comprometidas en la oferta (para dimensionar stock).'),
+                'Estado':        st.column_config.TextColumn('Estado', disabled=True),
+            },
+            use_container_width=True,
+            hide_index=True,
+            key="oferta_env_editor"
+        )
+
+        if st.button("💾 Guardar ofertas envases", key="btn_guardar_oferta_env"):
+            _save_env = edited_of_env[['Referencia', 'Oferta_inicio', 'Oferta_fin', 'Oferta_qty']].copy()
+            for _dc in ['Oferta_inicio', 'Oferta_fin']:
+                _save_env[_dc] = pd.to_datetime(_save_env[_dc], errors='coerce').dt.strftime('%Y-%m-%d').where(pd.to_datetime(_save_env[_dc], errors='coerce').notna(), None)
+            st.session_state.df_oferta_envases = _save_env
+            df_a_firebase(_save_env, 'envases', 'df_oferta_envases')
+            st.success("✅ Ofertas de envases guardadas.")
+            st.rerun()
 
 
 # ══════════════════════════════════════════════
