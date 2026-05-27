@@ -1611,7 +1611,18 @@ elif menu == "📊 Dashboard":
                 elif col == 'Oferta':
                     _pronto = row.get('Oferta_pronto', False)
                     _icono = '🏷️' if val else ('🔔' if _pronto else '')
-                    cells += f'<td style="padding:8px 12px;text-align:center;" title="{"Oferta activa" if val else ("Oferta en 2 días — revisar stock" if _pronto else "")}">{_icono}</td>'
+                    if _pronto:
+                        try:
+                            _dias_rest = (pd.Timestamp(row.get('Oferta_inicio')) - pd.Timestamp(datetime.now().date())).days
+                            _aviso = 'mañana' if _dias_rest <= 1 else f'en {_dias_rest} días'
+                        except Exception:
+                            _aviso = 'próximamente'
+                        _tooltip = f'Oferta {_aviso} — revisar stock'
+                    elif val:
+                        _tooltip = 'Oferta activa'
+                    else:
+                        _tooltip = ''
+                    cells += f'<td style="padding:8px 12px;text-align:center;" title="{_tooltip}">{_icono}</td>'
                 elif col == 'Descripcion':
                     cells += f'<td style="padding:8px 12px;color:{"#aaa" if es_baja else "#666"};max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="{val}">{str(val)[:30]}</td>'
                 elif col == 'Referencia':
