@@ -1847,14 +1847,15 @@ elif menu == "📦 Envases":
     # TAB 1: EXTERNO
     # ══════════════════════════════════════
     with tab_ext:
-        st.markdown("**Stock en almacenes externos** (TXT, ARENTO, AVITRANS). CDM = ventas mes / 24 días. SS = CDM × Lead time.")
+        st.markdown("**Stock en almacenes externos** (MERCAZARAGOZA, ARENTO, TXT, AVITRANS). CDM = ventas mes / 24 días. SS = CDM × Lead time.")
+        _ALM_ENV_EXT = ALMACENES_MERCA | ALMACENES_TXT | ALMACENES_AVITRANS | {'MERCAZARAGOZA'}
 
         if st.session_state.df_stock_erp is not None:
             s_ext = st.session_state.df_stock_erp.copy()
-            s_ext = s_ext[s_ext['Almacen'].isin(ALMACENES_MERCA | ALMACENES_TXT | ALMACENES_AVITRANS)]
+            s_ext = s_ext[s_ext['Almacen'].isin(_ALM_ENV_EXT)]
             stock_ext = s_ext.groupby('Referencia')['Cantidad'].sum().reset_index().rename(columns={'Cantidad': 'Stock_ext'})
             if stock_ext.empty:
-                st.info("ℹ️ No hay referencias de envases en TXT / ARENTO / AVITRANS en el archivo ERP cargado.")
+                st.info("ℹ️ No hay referencias de envases en almacenes externos en el archivo ERP cargado.")
         else:
             stock_ext = pd.DataFrame(columns=['Referencia', 'Stock_ext'])
             st.warning("⚠️ Sin stock ERP: ve a **Cargar Archivos** y sincroniza para ver stocks externos.")
@@ -2011,7 +2012,7 @@ elif menu == "📦 Envases":
         # ── Ahora el cómputo usa session_state ya actualizado ──────────────────
         if st.session_state.df_stock_erp is not None:
             s_al6 = st.session_state.df_stock_erp.copy()
-            s_al6 = s_al6[s_al6['Almacen'].isin(ALMACENES_INT)]
+            s_al6 = s_al6[s_al6['Almacen'] == 'PLAZA']
             stock_al6 = s_al6.groupby('Referencia')['Cantidad'].sum().reset_index().rename(columns={'Cantidad': 'Stock_al6'})
             stock_al6['Referencia'] = stock_al6['Referencia'].astype(str).str.strip().str.upper()
         else:
