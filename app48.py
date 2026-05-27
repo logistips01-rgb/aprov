@@ -1159,16 +1159,48 @@ if menu == "📂 Cargar Archivos":
             if col in final.columns:
                 final[col] = pd.to_numeric(final[col], errors='coerce').fillna(0)
 
-        # Preservar Oferta y congelar CDM para referencias en oferta
+        # Preservar Oferta (con fechas) y ajustar CDM excluyendo volumen de oferta
+        _today = pd.Timestamp(datetime.now().date())
+        _oferta_cols = ['Referencia', 'Cdm', 'Oferta', 'Oferta_inicio', 'Oferta_fin', 'Oferta_qty']
         if st.session_state.df_final is not None and 'Oferta' in st.session_state.df_final.columns:
-            prev_of = st.session_state.df_final[['Referencia', 'Cdm', 'Oferta']].copy()
-            final = final.merge(prev_of.rename(columns={'Cdm': '_cdm_prev', 'Oferta': 'Oferta'}), on='Referencia', how='left')
-            final['Oferta'] = final['Oferta'].fillna(False)
+            prev_of = st.session_state.df_final[[c for c in _oferta_cols if c in st.session_state.df_final.columns]].copy()
+            final = final.merge(prev_of.rename(columns={'Cdm': '_cdm_prev'}), on='Referencia', how='left')
+
+            # Garantizar columnas de oferta aunque vengan de Firebase sin ellas
+            for _c, _def in [('Oferta', False), ('Oferta_inicio', pd.NaT), ('Oferta_fin', pd.NaT), ('Oferta_qty', 0)]:
+                if _c not in final.columns:
+                    final[_c] = _def
+
+            # Auto-activar/desactivar según fechas
+            _has_dates = final['Oferta_inicio'].notna() & final['Oferta_fin'].notna()
+            final.loc[_has_dates, 'Oferta'] = (
+                (final.loc[_has_dates, 'Oferta_inicio'] <= _today) &
+                (_today <= final.loc[_has_dates, 'Oferta_fin'])
+            )
+            final['Oferta'] = final['Oferta'].fillna(False).astype(bool)
+
+            # Ajustar CDM: en oferta restar CDM diario de oferta (Oferta_qty / días período)
             mask = final['Oferta'] == True
-            final.loc[mask, 'Cdm'] = final.loc[mask, '_cdm_prev']
-            final = final.drop(columns=['_cdm_prev'])
+            if mask.any():
+                def _cdm_ajustado(row):
+                    cdm_real = row.get('Cdm', 0) or 0
+                    qty = float(row.get('Oferta_qty', 0) or 0)
+                    if qty <= 0:
+                        # Sin qty: congelar CDM (comportamiento anterior)
+                        return row.get('_cdm_prev', cdm_real) or cdm_real
+                    # Días del período = días entre inicio y fin (mín. 1)
+                    try:
+                        dias = max(1, (pd.Timestamp(row['Oferta_fin']) - pd.Timestamp(row['Oferta_inicio'])).days)
+                    except Exception:
+                        dias = 1
+                    cdm_oferta_dia = qty / dias
+                    return max(0, round(cdm_real - cdm_oferta_dia, 2))
+                final.loc[mask, 'Cdm'] = final[mask].apply(_cdm_ajustado, axis=1)
+
+            final = final.drop(columns=['_cdm_prev'], errors='ignore')
         else:
-            final['Oferta'] = False
+            for _c, _def in [('Oferta', False), ('Oferta_inicio', pd.NaT), ('Oferta_fin', pd.NaT), ('Oferta_qty', 0)]:
+                final[_c] = _def
 
         st.session_state.df_final = final
         st.session_state.df_consumos = c
@@ -1614,27 +1646,52 @@ elif menu == "📊 Dashboard":
     render_dashboard_table(vista, cols_mostrar)
 
     # --- Gestión de ofertas ---
-    with st.expander("🏷️ Marcar referencias en oferta"):
-        st.caption("Mientras una referencia esté marcada, su CDM no se recalcula en el sync y queda excluida del análisis de SS Óptimo.")
+    with st.expander("🏷️ Gestión de ofertas"):
+        st.caption("Define fechas de inicio/fin y cantidad (box) de cada oferta. El sistema activa/desactiva automáticamente y descuenta el volumen de oferta del CDM para no distorsionar el stock de seguridad.")
         if st.session_state.df_final is not None:
             df_of = st.session_state.df_final[['Referencia', 'Descripcion']].copy()
-            df_of['Oferta'] = st.session_state.df_final.get('Oferta', pd.Series(False, index=st.session_state.df_final.index)).fillna(False).astype(bool) if 'Oferta' in st.session_state.df_final.columns else False
+            _today_of = pd.Timestamp(datetime.now().date())
+            for _c, _def in [('Oferta_inicio', pd.NaT), ('Oferta_fin', pd.NaT), ('Oferta_qty', 0)]:
+                df_of[_c] = st.session_state.df_final[_c] if _c in st.session_state.df_final.columns else _def
+            df_of['Oferta_inicio'] = pd.to_datetime(df_of['Oferta_inicio'], errors='coerce')
+            df_of['Oferta_fin']    = pd.to_datetime(df_of['Oferta_fin'],    errors='coerce')
+            df_of['Oferta_qty']    = pd.to_numeric(df_of['Oferta_qty'],     errors='coerce').fillna(0).astype(int)
+            # Columna de estado solo para visualizar
+            def _estado_oferta(row):
+                if pd.isna(row['Oferta_inicio']) or pd.isna(row['Oferta_fin']):
+                    return '—'
+                if row['Oferta_fin'] < _today_of:
+                    return '✅ Finalizada'
+                if row['Oferta_inicio'] <= _today_of:
+                    return '🟠 Activa'
+                return f"🕐 Desde {row['Oferta_inicio'].strftime('%d/%m')}"
+            df_of['Estado'] = df_of.apply(_estado_oferta, axis=1)
+
             edited_of = st.data_editor(
                 df_of,
                 column_config={
-                    'Oferta':      st.column_config.CheckboxColumn('En oferta'),
-                    'Referencia':  st.column_config.TextColumn('Referencia', disabled=True),
-                    'Descripcion': st.column_config.TextColumn('Descripción', disabled=True),
+                    'Referencia':   st.column_config.TextColumn('Referencia',   disabled=True),
+                    'Descripcion':  st.column_config.TextColumn('Descripción',  disabled=True),
+                    'Oferta_inicio':st.column_config.DateColumn('Inicio oferta', format='DD/MM/YYYY'),
+                    'Oferta_fin':   st.column_config.DateColumn('Fin oferta',    format='DD/MM/YYYY'),
+                    'Oferta_qty':   st.column_config.NumberColumn('Uds oferta (box)', min_value=0, step=1,
+                                        help='Total de boxes comprometidos en la oferta. Se reparte entre los días del período para restar del CDM.'),
+                    'Estado':       st.column_config.TextColumn('Estado', disabled=True),
                 },
                 hide_index=True,
                 use_container_width=True,
                 key="oferta_editor"
             )
-            if st.button("💾 Guardar cambios de oferta", key="btn_guardar_oferta"):
-                oferta_map = edited_of.set_index('Referencia')['Oferta'].to_dict()
-                st.session_state.df_final['Oferta'] = st.session_state.df_final['Referencia'].map(oferta_map).fillna(False)
+            if st.button("💾 Guardar ofertas", key="btn_guardar_oferta"):
+                for _c in ['Oferta_inicio', 'Oferta_fin', 'Oferta_qty']:
+                    _map = edited_of.set_index('Referencia')[_c].to_dict()
+                    st.session_state.df_final[_c] = st.session_state.df_final['Referencia'].map(_map)
+                # Recalcular Oferta activa ahora mismo
+                _fi = pd.to_datetime(st.session_state.df_final.get('Oferta_inicio', pd.NaT), errors='coerce')
+                _ff = pd.to_datetime(st.session_state.df_final.get('Oferta_fin',    pd.NaT), errors='coerce')
+                st.session_state.df_final['Oferta'] = (_fi.notna() & _ff.notna() & (_fi <= _today_of) & (_today_of <= _ff)).fillna(False)
                 df_a_firebase(st.session_state.df_final, 'bandejas', 'df_final')
-                st.success("✅ Cambios de oferta guardados.")
+                st.success("✅ Ofertas guardadas.")
                 st.rerun()
 
     # --- Exportar a Excel ---
