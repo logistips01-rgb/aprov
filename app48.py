@@ -1185,27 +1185,6 @@ if menu == "📂 Cargar Archivos":
                 (_today <= final.loc[_has_dates, 'Oferta_fin'])
             )
             final['Oferta'] = final['Oferta'].fillna(False).astype(bool)
-
-            # Ajustar CDM: en oferta restar CDM diario de oferta (Oferta_qty / días período)
-            mask = final['Oferta'] == True
-            if mask.any():
-                def _cdm_ajustado(row):
-                    cdm_real = row.get('Cdm', 0) or 0
-                    qty = float(row.get('Oferta_qty', 0) or 0)
-                    if qty <= 0:
-                        return cdm_real
-                    u_p = max(1.0, float(row.get('Unidades_palet', 1) or 1))
-                    # Días del período = días entre inicio y fin (mín. 1)
-                    try:
-                        dias = max(1, (pd.Timestamp(row['Oferta_fin']) - pd.Timestamp(row['Oferta_inicio'])).days)
-                    except Exception:
-                        dias = 1
-                    # qty está en cajas; convertir a palets antes de restar al CDM (pal/día)
-                    cdm_oferta_dia = (qty / u_p) / dias
-                    return max(0, round(cdm_real - cdm_oferta_dia, 2))
-                final.loc[mask, 'Cdm'] = final[mask].apply(_cdm_ajustado, axis=1)
-
-            final = final.drop(columns=['_cdm_prev', 'Cdm_y'], errors='ignore')
         else:
             for _c, _def in [('Oferta', False), ('Oferta_inicio', pd.NaT), ('Oferta_fin', pd.NaT), ('Oferta_qty', 0)]:
                 final[_c] = _def
@@ -1678,7 +1657,7 @@ elif menu == "📊 Dashboard":
 
     # --- Gestión de ofertas ---
     with st.expander("🏷️ Gestión de ofertas"):
-        st.caption("Define fechas de inicio/fin y cantidad (box) de cada oferta. El sistema activa/desactiva automáticamente y descuenta el volumen de oferta del CDM para no distorsionar el stock de seguridad.")
+        st.caption("Define fechas de inicio/fin y cantidad (box) de cada oferta. El sistema activa/desactiva automáticamente y muestra el indicador 🔔/🏷️ para que puedas preparar stock a tiempo.")
         if st.session_state.df_final is not None:
             df_of = st.session_state.df_final[['Referencia', 'Descripcion']].copy()
             _today_of = pd.Timestamp(datetime.now().date())
