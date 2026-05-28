@@ -1152,6 +1152,14 @@ if menu == "📂 Cargar Archivos":
              .rename(columns={'Palets_dia': 'Cdm'})
         )
 
+        # --- DEBUG C12232: verificar CDM ---
+        _ref_dbg = 'C12232'
+        _c12_dia = c_dia[c_dia['Referencia'] == _ref_dbg]
+        _c12_cdm = cdm[cdm['Referencia'] == _ref_dbg]
+        st.write("### 🔍 DEBUG C12232")
+        st.write(f"Días usados para CDM: {len(_c12_dia)} | CDM resultado: {_c12_cdm['Cdm'].values}")
+        st.dataframe(_c12_dia[['Fecha', 'Cantidad', 'Unidades_palet', 'Palets_dia']], use_container_width=True)
+
         # --- Quedarse solo con las columnas necesarias del Maestro ---
         cols_m = COL_MAESTRO + [c for c in COL_MAESTRO_OPT if c in m.columns]
         m = m[cols_m]
