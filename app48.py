@@ -1164,10 +1164,10 @@ if menu == "📂 Cargar Archivos":
 
         # Preservar Oferta (con fechas) y ajustar CDM excluyendo volumen de oferta
         _today = pd.Timestamp(datetime.now().date())
-        _oferta_cols = ['Referencia', 'Cdm', 'Oferta', 'Oferta_inicio', 'Oferta_fin', 'Oferta_qty']
+        _oferta_cols = ['Referencia', 'Oferta', 'Oferta_inicio', 'Oferta_fin', 'Oferta_qty']
         if st.session_state.df_final is not None and 'Oferta' in st.session_state.df_final.columns:
             prev_of = st.session_state.df_final[[c for c in _oferta_cols if c in st.session_state.df_final.columns]].copy()
-            final = final.merge(prev_of.rename(columns={'Cdm': '_cdm_prev'}), on='Referencia', how='left')
+            final = final.merge(prev_of, on='Referencia', how='left')
 
             # Garantizar columnas de oferta aunque vengan de Firebase sin ellas
             for _c, _def in [('Oferta', False), ('Oferta_inicio', pd.NaT), ('Oferta_fin', pd.NaT), ('Oferta_qty', 0)]:
@@ -1193,8 +1193,7 @@ if menu == "📂 Cargar Archivos":
                     cdm_real = row.get('Cdm', 0) or 0
                     qty = float(row.get('Oferta_qty', 0) or 0)
                     if qty <= 0:
-                        # Sin qty: congelar CDM (comportamiento anterior)
-                        return row.get('_cdm_prev', cdm_real) or cdm_real
+                        return cdm_real
                     # Días del período = días entre inicio y fin (mín. 1)
                     try:
                         dias = max(1, (pd.Timestamp(row['Oferta_fin']) - pd.Timestamp(row['Oferta_inicio'])).days)
@@ -1204,7 +1203,7 @@ if menu == "📂 Cargar Archivos":
                     return max(0, round(cdm_real - cdm_oferta_dia, 2))
                 final.loc[mask, 'Cdm'] = final[mask].apply(_cdm_ajustado, axis=1)
 
-            final = final.drop(columns=['_cdm_prev'], errors='ignore')
+            final = final.drop(columns=['_cdm_prev', 'Cdm_y'], errors='ignore')
         else:
             for _c, _def in [('Oferta', False), ('Oferta_inicio', pd.NaT), ('Oferta_fin', pd.NaT), ('Oferta_qty', 0)]:
                 final[_c] = _def
