@@ -1194,12 +1194,14 @@ if menu == "📂 Cargar Archivos":
                     qty = float(row.get('Oferta_qty', 0) or 0)
                     if qty <= 0:
                         return cdm_real
+                    u_p = max(1.0, float(row.get('Unidades_palet', 1) or 1))
                     # Días del período = días entre inicio y fin (mín. 1)
                     try:
                         dias = max(1, (pd.Timestamp(row['Oferta_fin']) - pd.Timestamp(row['Oferta_inicio'])).days)
                     except Exception:
                         dias = 1
-                    cdm_oferta_dia = qty / dias
+                    # qty está en cajas; convertir a palets antes de restar al CDM (pal/día)
+                    cdm_oferta_dia = (qty / u_p) / dias
                     return max(0, round(cdm_real - cdm_oferta_dia, 2))
                 final.loc[mask, 'Cdm'] = final[mask].apply(_cdm_ajustado, axis=1)
 
