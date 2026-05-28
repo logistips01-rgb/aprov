@@ -1174,6 +1174,10 @@ if menu == "📂 Cargar Archivos":
                 if _c not in final.columns:
                     final[_c] = _def
 
+            # Asegurar tipos datetime (Firebase puede devolver string[pyarrow])
+            final['Oferta_inicio'] = pd.to_datetime(final['Oferta_inicio'], errors='coerce')
+            final['Oferta_fin']    = pd.to_datetime(final['Oferta_fin'],    errors='coerce')
+
             # Auto-activar/desactivar según fechas
             _has_dates = final['Oferta_inicio'].notna() & final['Oferta_fin'].notna()
             final.loc[_has_dates, 'Oferta'] = (
