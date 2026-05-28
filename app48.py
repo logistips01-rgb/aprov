@@ -681,9 +681,9 @@ def obtener_contexto_agente():
         # Stock hoy - solo campos clave
         hoy = pd.read_sql(f"SELECT referencia, descripcion, stock_interno, stock_merca, stock_txt, cdm, stock_seguridad, unidades_palet FROM snapshots WHERE fecha='{ultima}'", con)
         hoy['u_p'] = hoy['unidades_palet'].clip(lower=1)
-        hoy['pal_int']   = (hoy['stock_interno'] / hoy['u_p']).round()
-        hoy['pal_merca'] = (hoy['stock_merca']   / hoy['u_p']).round()
-        hoy['pal_txt']   = (hoy['stock_txt']      / hoy['u_p']).round()
+        hoy['pal_int']   = (hoy['stock_interno'] / hoy['u_p']).apply(math.floor)
+        hoy['pal_merca'] = (hoy['stock_merca']   / hoy['u_p']).apply(math.floor)
+        hoy['pal_txt']   = (hoy['stock_txt']      / hoy['u_p']).apply(math.floor)
         hoy['cdm_pal']   = hoy['cdm'].apply(lambda x: round(x,1))
         hoy['seg']       = hoy['stock_seguridad'].round()
 
@@ -695,7 +695,7 @@ def obtener_contexto_agente():
         if penultima:
             ayer = pd.read_sql(f"SELECT referencia, stock_interno, unidades_palet FROM snapshots WHERE fecha='{penultima}'", con)
             ayer['u_p'] = ayer['unidades_palet'].clip(lower=1)
-            ayer['pal_int_ayer'] = (ayer['stock_interno'] / ayer['u_p']).round()
+            ayer['pal_int_ayer'] = (ayer['stock_interno'] / ayer['u_p']).apply(math.floor)
             comp = hoy[['referencia','pal_int']].merge(ayer[['referencia','pal_int_ayer']], on='referencia', how='left')
             comp['diff'] = comp['pal_int'] - comp['pal_int_ayer'].fillna(0)
             bajadas = comp[comp['diff'] < -2].sort_values('diff')
@@ -1284,10 +1284,10 @@ elif menu == "📊 Dashboard":
                 # Stock por almacén
                 st.markdown("**Stock por almacén (palets)**")
                 col_s1, col_s2, col_s3, col_s4 = st.columns(4)
-                col_s1.metric("Interno (AL6+SGA)", round(r.get('Stock_interno', 0) / u_p))
-                col_s2.metric("Merca", round(r.get('Stock_merca', 0) / u_p))
-                col_s3.metric("TXT", round(r.get('Stock_txt', 0) / u_p))
-                col_s4.metric("Avitrans", round(r.get('Stock_avitrans', 0) / u_p) if 'Stock_avitrans' in r.index else 0)
+                col_s1.metric("Interno (AL6+SGA)", math.floor(r.get('Stock_interno', 0) / u_p))
+                col_s2.metric("Merca", math.floor(r.get('Stock_merca', 0) / u_p))
+                col_s3.metric("TXT", math.floor(r.get('Stock_txt', 0) / u_p))
+                col_s4.metric("Avitrans", math.floor(r.get('Stock_avitrans', 0) / u_p) if 'Stock_avitrans' in r.index else 0)
 
                 # Tránsito
                 t_d = st.session_state.df_transito.copy()
@@ -1418,12 +1418,12 @@ elif menu == "📊 Dashboard":
         situacion  = row.get('Situacion', 'ACTIVA')
         var_cdm    = row.get('Var_CDM', 0) or 0
 
-        pal_int       = round(row['Stock_interno']         / u_p)
-        pal_merca     = round(row['Stock_merca']           / u_p)
-        pal_txt       = round(row['Stock_txt']             / u_p)
-        pal_avitrans  = round(row.get('Stock_avitrans', 0) / u_p)
-        pal_transito  = round(row['En_transito']           / u_p)
-        pal_transito2 = round(row.get('En_transito2', 0)   / u_p)
+        pal_int       = math.floor(row['Stock_interno']         / u_p)
+        pal_merca     = math.floor(row['Stock_merca']           / u_p)
+        pal_txt       = math.floor(row['Stock_txt']             / u_p)
+        pal_avitrans  = math.floor(row.get('Stock_avitrans', 0) / u_p)
+        pal_transito  = math.floor(row['En_transito']           / u_p)
+        pal_transito2 = math.floor(row.get('En_transito2', 0)   / u_p)
         seg_pal       = round(seg)
         cdm_pal       = math.ceil(cdm)
 
@@ -2540,8 +2540,8 @@ elif menu == "🤖 Agente IA":
                     cdm = r.get('Cdm',0)
                     lead = r.get('Lead_time',0)
                     seg = r.get('Stock_seguridad',0)
-                    pal_int = round(r.get('Stock_interno',0)/u_p)
-                    pal_t = round((r.get('T1',0)+r.get('T2',0))/u_p)
+                    pal_int = math.floor(r.get('Stock_interno',0)/u_p)
+                    pal_t = math.floor((r.get('T1',0)+r.get('T2',0))/u_p)
                     stock_final = pal_int + pal_t - (cdm*lead)
                     dias_cob = round(pal_int/cdm) if cdm>0 else 999
                     if stock_final < seg:
