@@ -1120,6 +1120,21 @@ if menu == "📂 Cargar Archivos":
         c_dia = c.groupby(['Referencia', 'Fecha'])['Cantidad'].sum().reset_index()
         c_dia = c_dia[c_dia['Cantidad'] > 0]
 
+        # Excluir días que caen dentro del periodo de oferta (consumo atípico)
+        if st.session_state.df_final is not None and 'Oferta_inicio' in st.session_state.df_final.columns:
+            _of_per = st.session_state.df_final[['Referencia', 'Oferta_inicio', 'Oferta_fin']].copy()
+            _of_per['Oferta_inicio'] = pd.to_datetime(_of_per['Oferta_inicio'], errors='coerce')
+            _of_per['Oferta_fin']    = pd.to_datetime(_of_per['Oferta_fin'],    errors='coerce')
+            _of_per = _of_per.dropna(subset=['Oferta_inicio', 'Oferta_fin'])
+            if not _of_per.empty:
+                c_dia = c_dia.merge(_of_per, on='Referencia', how='left')
+                _en_oferta = (
+                    c_dia['Oferta_inicio'].notna() &
+                    (c_dia['Fecha'] >= c_dia['Oferta_inicio']) &
+                    (c_dia['Fecha'] <= c_dia['Oferta_fin'])
+                )
+                c_dia = c_dia[~_en_oferta].drop(columns=['Oferta_inicio', 'Oferta_fin'], errors='ignore')
+
         # Unir Unidades_palet del maestro para convertir a palets por día
         # Normalizamos Referencia a mayúsculas en ambos lados para evitar fallos de merge
         uds_palet = m[['Referencia', 'Unidades_palet']].drop_duplicates().copy()
@@ -1136,18 +1151,6 @@ if menu == "📂 Cargar Archivos":
              .reset_index()
              .rename(columns={'Palets_dia': 'Cdm'})
         )
-
-        # --- DEBUG TEMPORAL: mostrar C12232 ---
-        ref_debug = 'C12232'
-        st.write("### 🔍 DEBUG C12232")
-        c12_raw = c[c['Referencia'] == ref_debug]
-        st.write(f"Filas en consumos: {len(c12_raw)}")
-        st.write(f"Cantidad total (abs): {c12_raw['Cantidad'].sum()}")
-        c12_dia = c_dia[c_dia['Referencia'] == ref_debug]
-        st.write(f"Días con movimiento: {len(c12_dia)}")
-        st.write(c12_dia[['Fecha','Cantidad','Unidades_palet','Palets_dia']])
-        c12_cdm = cdm[cdm['Referencia'] == ref_debug]
-        st.write(f"CDM resultado: {c12_cdm['Cdm'].values}")
 
         # --- Quedarse solo con las columnas necesarias del Maestro ---
         cols_m = COL_MAESTRO + [c for c in COL_MAESTRO_OPT if c in m.columns]
