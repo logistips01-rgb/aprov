@@ -30,9 +30,10 @@ FIREBASE_KEY = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'aprov-c
 def get_firestore():
     import firebase_admin
     from firebase_admin import credentials, firestore
-    if not firebase_admin._apps:
+    try:
+        firebase_admin.get_app()
+    except ValueError:
         try:
-            # Streamlit Cloud: leer desde secrets
             _has_firebase_secret = False
             try:
                 _has_firebase_secret = 'firebase' in st.secrets
@@ -41,11 +42,9 @@ def get_firestore():
             if _has_firebase_secret:
                 import json
                 cert = dict(st.secrets['firebase'])
-                # Streamlit convierte \n en literales, hay que restaurarlos
                 if 'private_key' in cert:
                     cert['private_key'] = cert['private_key'].replace('\\n', '\n')
                 cred = credentials.Certificate(cert)
-            # Local: leer desde archivo .json
             elif os.path.exists(FIREBASE_KEY):
                 cred = credentials.Certificate(FIREBASE_KEY)
             else:
