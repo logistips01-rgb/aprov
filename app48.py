@@ -1432,7 +1432,7 @@ elif menu == "📊 Dashboard":
 
         # Alerta: no llegamos al stock de seguridad
         if stock_final < seg:
-            pedido = math.ceil(seg + cdm_efectivo - stock_final + incremento)
+            pedido = math.ceil(seg + cdm_efectivo * lead - stock_final + incremento)
             dias_stock_actual = (stock_op / cdm_efectivo) if cdm_efectivo > 0 else 999
             # Rojo si: ya estamos por debajo del stock de seguridad, o no llegamos al lead time
             if stock_op < seg or dias_stock_actual < lead:
