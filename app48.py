@@ -3959,15 +3959,21 @@ elif menu == "🔍 Previsión y Obsoletos":
             disponible  = pal_teorico + pal_transito + pal_transito2
             stock_final = disponible - cdm_ef * lead
 
+            # Rojo: no hay stock suficiente para la producción planificada
+            if pal_teorico < 0:
+                pedido_ef  = math.ceil(seg + cdm_ef * lead - stock_final + incremento)
+                pedido_min = math.ceil(seg + cdm * lead - (disponible - cdm * lead) + incremento)
+                pedido = max(pedido_ef, pedido_min, 0)
+                return pal_actual, pal_nec, pal_transito, pal_transito2, pal_teorico, seg_pal, cdm_pal, pedido, f"🔴 FALTA STOCK: {pedido} Pal.", "#721c24"
+
+            # Amarillo: hay stock para producir pero el proyectado baja del SS
             if stock_final < seg:
                 pedido_ef  = math.ceil(seg + cdm_ef * lead - stock_final + incremento)
                 pedido_min = math.ceil(seg + cdm * lead - (disponible - cdm * lead) + incremento)
                 pedido = max(pedido_ef, pedido_min, 0)
-                dias_teorico = (pal_teorico / cdm_ef) if cdm_ef > 0 else 999
-                if pal_teorico < seg or dias_teorico < lead:
-                    return pal_actual, pal_nec, pal_transito, pal_transito2, pal_teorico, seg_pal, cdm_pal, pedido, f"🔴 COMPRAR: {pedido} Pal.", "#721c24"
-                else:
-                    return pal_actual, pal_nec, pal_transito, pal_transito2, pal_teorico, seg_pal, cdm_pal, pedido, f"🟡 COMPRAR: {pedido} Pal.", "#856404"
+                return pal_actual, pal_nec, pal_transito, pal_transito2, pal_teorico, seg_pal, cdm_pal, pedido, f"🟡 COMPRAR: {pedido} Pal.", "#856404"
+
+            # Verde: todo OK
             pedido = 0
             estado = "🟢 OK"
             if pal_transito + pal_transito2 > 0:
