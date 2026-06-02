@@ -1431,6 +1431,8 @@ elif menu == "📊 Dashboard":
         stock_final = stock_op + pal_transito + pal_transito2 - necesidad_bruta
 
         # Alerta: no llegamos al stock de seguridad
+        if str(row.get('Referencia', '')) == 'C12043':
+            st.write(f"🔬 calcular_alerta C12043 | seg={seg!r} type={type(seg).__name__} | stock_final={stock_final!r} | condicion={stock_final < seg!r} | stock_op={stock_op} | necesidad={necesidad_bruta!r}")
         if stock_final < seg:
             disponible = stock_op + pal_transito + pal_transito2
             # Pedido con CDM efectivo (ajustado por variación)
