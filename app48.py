@@ -3934,6 +3934,7 @@ elif menu == "🔍 Previsión y Obsoletos":
         cot_prev['En_transito2'] = cot_prev['En_transito2'].fillna(0)
         if 'Situacion' not in cot_prev.columns:
             cot_prev['Situacion'] = 'ACTIVA'
+        cot_prev = cot_prev[cot_prev['Situacion'].str.strip().str.upper() != 'BAJA']
 
         def _calcular_prev(row):
             u_p        = max(row['Unidades_palet'], 1)
