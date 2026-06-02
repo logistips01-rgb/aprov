@@ -3907,41 +3907,143 @@ elif menu == "🔍 Previsión y Obsoletos":
         necesidad = df_plan.groupby('Codigo')['Apro'].sum().reset_index()
         necesidad.columns = ['Referencia', 'Necesidad_ud']
 
-        # ── BANDEJAS ──────────────────────────────────────────
-        st.markdown("#### 📦 Bandejas (en box)")
-        cot_band = df_band[['Referencia', 'Descripcion', 'Stock_total_ud', 'Unidades_palet']].copy()
-        cot_band = cot_band.merge(necesidad, on='Referencia', how='left')
-        cot_band['Necesidad_ud']   = cot_band['Necesidad_ud'].fillna(0)
-        cot_band['Unidades_palet'] = cot_band['Unidades_palet'].fillna(1).clip(lower=1)
-        cot_band['Nec_box']        = (cot_band['Necesidad_ud']   / cot_band['Unidades_palet']).apply(math.ceil)
-        cot_band['Stock_box']      = (cot_band['Stock_total_ud'] / cot_band['Unidades_palet']).apply(math.floor)
-        cot_band['Dif_box']        = cot_band['Stock_box'] - cot_band['Nec_box']
-        cot_band['Estado']         = cot_band.apply(
-            lambda r: f"🔴 FALTA: {abs(int(r['Dif_box']))} box" if r['Dif_box'] < 0
-            else ("⚪ Sin planificar" if r['Necesidad_ud'] == 0 else "🟢 OK"), axis=1
+        # ── BANDEJAS — Previsión de pedido (stock teórico tras producción) ──
+        st.markdown("#### 📦 Bandejas — Previsión de pedido")
+        st.caption("Stock teórico = stock actual − necesidad producción. El pedido cubre SS + CDM × lead_time incluido tránsito.")
+
+        _cols_prev = ['Referencia', 'Descripcion', 'Stock_interno', 'Unidades_palet',
+                      'Cdm', 'Stock_seguridad', 'Lead_time', 'Situacion', 'Var_CDM', 'Incremento',
+                      'En_transito', 'En_transito2']
+        _cols_prev = [c for c in _cols_prev if c in df_band.columns]
+        cot_prev = df_band[_cols_prev].copy()
+        cot_prev = cot_prev.merge(necesidad, on='Referencia', how='left')
+        cot_prev['Necesidad_ud']   = cot_prev['Necesidad_ud'].fillna(0)
+        cot_prev['Unidades_palet'] = cot_prev['Unidades_palet'].fillna(1).clip(lower=1)
+        for _fc in ['En_transito', 'En_transito2', 'Cdm', 'Stock_seguridad', 'Lead_time', 'Var_CDM', 'Incremento']:
+            if _fc not in cot_prev.columns:
+                cot_prev[_fc] = 0
+        cot_prev['En_transito']  = cot_prev['En_transito'].fillna(0)
+        cot_prev['En_transito2'] = cot_prev['En_transito2'].fillna(0)
+        if 'Situacion' not in cot_prev.columns:
+            cot_prev['Situacion'] = 'ACTIVA'
+
+        def _calcular_prev(row):
+            u_p        = max(row['Unidades_palet'], 1)
+            lead       = row['Lead_time'] or 1
+            seg        = row['Stock_seguridad'] or 0
+            cdm        = row['Cdm'] or 0
+            var_cdm    = row['Var_CDM'] or 0
+            incremento = row['Incremento'] or 0
+            nec_ud     = row['Necesidad_ud'] or 0
+
+            pal_actual    = math.floor(row['Stock_interno'] / u_p)
+            pal_nec       = math.ceil(nec_ud / u_p)
+            pal_teorico   = math.floor((row['Stock_interno'] - nec_ud) / u_p)
+            pal_transito  = math.floor(row['En_transito']  / u_p)
+            pal_transito2 = math.floor(row['En_transito2'] / u_p)
+            seg_pal = round(seg)
+            cdm_pal = math.ceil(cdm)
+
+            cdm_ef = cdm
+            if abs(var_cdm) >= 15:
+                cdm_ef = max(cdm * (1 + var_cdm / 100), 0.01)
+
+            disponible  = pal_teorico + pal_transito + pal_transito2
+            stock_final = disponible - cdm_ef * lead
+
+            if stock_final < seg:
+                pedido_ef  = math.ceil(seg + cdm_ef * lead - stock_final + incremento)
+                pedido_min = math.ceil(seg + cdm * lead - (disponible - cdm * lead) + incremento)
+                pedido = max(pedido_ef, pedido_min, 0)
+                dias_teorico = (pal_teorico / cdm_ef) if cdm_ef > 0 else 999
+                if pal_teorico < seg or dias_teorico < lead:
+                    return pal_actual, pal_nec, pal_transito, pal_transito2, pal_teorico, seg_pal, cdm_pal, pedido, f"🔴 COMPRAR: {pedido} Pal.", "#721c24"
+                else:
+                    return pal_actual, pal_nec, pal_transito, pal_transito2, pal_teorico, seg_pal, cdm_pal, pedido, f"🟡 COMPRAR: {pedido} Pal.", "#856404"
+            pedido = 0
+            estado = "🟢 OK"
+            if pal_transito + pal_transito2 > 0:
+                estado += f" (🚢 {pal_transito + pal_transito2} Pal.)"
+            return pal_actual, pal_nec, pal_transito, pal_transito2, pal_teorico, seg_pal, cdm_pal, pedido, estado, "#155724"
+
+        cot_prev[['Pal_actual', 'Nec_pal', 'Transito1', 'Transito2', 'Stk_teorico',
+                   'SS', 'CDM', 'Pedido', 'Estado', 'Color']] = cot_prev.apply(
+            lambda r: pd.Series(_calcular_prev(r)), axis=1
         )
-        cot_band['Color'] = cot_band['Dif_box'].apply(lambda d: "#721c24" if d < 0 else "#155724")
 
-        alertas_b = (cot_band['Dif_box'] < 0).sum()
-        cb1, cb2, cb3 = st.columns(3)
-        cb1.metric("Total bandejas", len(cot_band))
-        cb2.metric("🔴 Falta stock", alertas_b)
-        cb3.metric("📋 Planificadas hoy", (cot_band['Necesidad_ud'] > 0).sum())
+        alertas_b = cot_prev['Estado'].str.startswith("🔴").sum()
+        avisos_b  = cot_prev['Estado'].str.startswith("🟡").sum()
+        cb1, cb2, cb3, cb4 = st.columns(4)
+        cb1.metric("Total bandejas", len(cot_prev))
+        cb2.metric("🔴 Alertas", alertas_b)
+        cb3.metric("🟡 Avisos", avisos_b)
+        cb4.metric("📋 Planificadas hoy", (cot_prev['Necesidad_ud'] > 0).sum())
 
-        filtro_band = st.selectbox("Filtrar bandejas:", ["Todas", "🔴 Solo con falta", "📋 Solo planificadas"], key="fb")
-        vista_band = cot_band.copy()
-        if filtro_band == "🔴 Solo con falta":
-            vista_band = vista_band[vista_band['Dif_box'] < 0]
+        filtro_band = st.selectbox("Filtrar bandejas:", ["Todas", "🔴 Solo alertas", "🟡 Avisos", "📋 Solo planificadas"], key="fb")
+        vista_prev = cot_prev.copy()
+        if filtro_band == "🔴 Solo alertas":
+            vista_prev = vista_prev[vista_prev['Estado'].str.startswith("🔴")]
+        elif filtro_band == "🟡 Avisos":
+            vista_prev = vista_prev[vista_prev['Estado'].str.startswith("🟡")]
         elif filtro_band == "📋 Solo planificadas":
-            vista_band = vista_band[vista_band['Necesidad_ud'] > 0]
+            vista_prev = vista_prev[vista_prev['Necesidad_ud'] > 0]
 
-        cols_b = ['Referencia', 'Descripcion', 'Nec_box', 'Stock_box', 'Dif_box', 'Estado']
-        def color_band(row):
-            return [f'background-color: {cot_band.loc[row.name, "Color"]}; color: white'] * len(row)
-        st.dataframe(vista_band[cols_b].style.apply(color_band, axis=1), use_container_width=True, height=400)
+        def _render_prev_table(df_v):
+            badge_map = {
+                "#721c24": ('background:#FDEDEC;color:#C0392B;', '#E74C3C'),
+                "#856404": ('background:#FEF9E7;color:#D68910;', '#F39C12'),
+                "#155724": ('background:#EAFAF1;color:#1E8449;', '#27AE60'),
+            }
+            col_labels = {
+                'Referencia': 'Ref.', 'Descripcion': 'Descripción',
+                'Nec_pal': 'Nec.Prod', 'Pal_actual': 'Stock Act.',
+                'Transito1': 'Tráns.1', 'Transito2': 'Tráns.2',
+                'Stk_teorico': 'Stk.Teórico', 'SS': 'SS', 'CDM': 'CDM',
+                'Pedido': 'Pedido', 'Estado': 'Estado',
+            }
+            cols_show = ['Referencia', 'Descripcion', 'Nec_pal', 'Pal_actual',
+                         'Transito1', 'Transito2', 'Stk_teorico', 'SS', 'CDM', 'Pedido', 'Estado']
+            rows_html = ""
+            for _, row in df_v.iterrows():
+                color = row.get('Color', '#155724')
+                badge_style, dot_color = badge_map.get(color, badge_map["#155724"])
+                dot = f'<span style="width:6px;height:6px;border-radius:50%;background:{dot_color};display:inline-block;margin-right:4px;"></span>'
+                estado_text = str(row.get('Estado', '')).replace('🔴 ', '').replace('🟡 ', '').replace('🟢 ', '').replace('(🚢 ', '').replace(')', '')
+                estado_badge = f'<span style="display:inline-flex;align-items:center;{badge_style}padding:3px 8px;border-radius:20px;font-size:11px;font-weight:500;">{dot}{estado_text}</span>'
+                row_bg = "background:#FEF9F9;" if color == "#721c24" else ("background:#FFFDE7;" if color == "#856404" else "background:#F0FBF4;")
+                cells = ""
+                for col in cols_show:
+                    val = row.get(col, "")
+                    if col == 'Estado':
+                        cells += f'<td style="padding:8px 12px;">{estado_badge}</td>'
+                    elif col == 'Referencia':
+                        cells += f'<td style="padding:8px 12px;font-weight:600;color:#2C3E50;">{val}</td>'
+                    elif col == 'Descripcion':
+                        cells += f'<td style="padding:8px 12px;color:#666;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="{val}">{str(val)[:35]}</td>'
+                    elif col == 'Pedido':
+                        v = int(val) if val else 0
+                        style = "font-weight:600;color:#E74C3C;" if v > 0 else "color:#aaa;"
+                        cells += f'<td style="padding:8px 12px;{style}">{v if v > 0 else "-"}</td>'
+                    elif col == 'Stk_teorico':
+                        v = int(val) if val is not None else 0
+                        style = "font-weight:600;color:#E74C3C;" if v < 0 else "color:#555;"
+                        cells += f'<td style="padding:8px 12px;{style}">{v}</td>'
+                    else:
+                        cells += f'<td style="padding:8px 12px;color:#555;">{val}</td>'
+                rows_html += f'<tr style="border-bottom:1px solid #F2F3F4;{row_bg}">{cells}</tr>'
+            headers = "".join([
+                f'<th style="padding:7px 12px;text-align:left;font-size:10px;font-weight:700;color:#5D6D7E;text-transform:uppercase;letter-spacing:0.05em;background:#F4F6F7;border-bottom:2px solid #D5D8DC;">{col_labels.get(c, c)}</th>'
+                for c in cols_show
+            ])
+            html = f'<div style="background:white;border-radius:10px;border:1px solid #D5D8DC;overflow:hidden;margin-top:8px;"><div style="overflow-x:auto;max-height:520px;overflow-y:auto;"><table style="width:100%;border-collapse:collapse;font-size:12px;table-layout:auto;"><thead style="position:sticky;top:0;z-index:1;"><tr>{headers}</tr></thead><tbody>{rows_html}</tbody></table></div></div>'
+            st.markdown(html, unsafe_allow_html=True)
+
+        _render_prev_table(vista_prev)
+
+        _cols_exp = ['Referencia', 'Descripcion', 'Nec_pal', 'Pal_actual', 'Transito1', 'Transito2', 'Stk_teorico', 'SS', 'CDM', 'Pedido', 'Estado']
         st.download_button("📥 Exportar Bandejas",
-                           exportar_excel_prof(vista_band[cols_b], "Bandejas"),
-                           "cotejo_bandejas.xlsx",
+                           exportar_excel_prof(vista_prev[_cols_exp], "Bandejas"),
+                           "prevision_bandejas.xlsx",
                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
         # ── ETIQUETAS ─────────────────────────────────────────
