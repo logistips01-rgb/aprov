@@ -3912,13 +3912,21 @@ elif menu == "🔍 Previsión y Obsoletos":
         st.caption("Stock teórico = stock actual − necesidad producción. El pedido cubre SS + CDM × lead_time incluido tránsito.")
 
         _cols_prev = ['Referencia', 'Descripcion', 'Stock_interno', 'Unidades_palet',
-                      'Cdm', 'Stock_seguridad', 'Lead_time', 'Situacion', 'Var_CDM', 'Incremento',
-                      'En_transito', 'En_transito2']
+                      'Cdm', 'Stock_seguridad', 'Lead_time', 'Situacion', 'Var_CDM', 'Incremento']
         _cols_prev = [c for c in _cols_prev if c in df_band.columns]
         cot_prev = df_band[_cols_prev].copy()
         cot_prev = cot_prev.merge(necesidad, on='Referencia', how='left')
         cot_prev['Necesidad_ud']   = cot_prev['Necesidad_ud'].fillna(0)
         cot_prev['Unidades_palet'] = cot_prev['Unidades_palet'].fillna(1).clip(lower=1)
+        # Tránsito: df_final no incluye estas columnas, hay que unirlas desde sesión
+        if st.session_state.df_transito is not None and not st.session_state.df_transito.empty:
+            _t = (st.session_state.df_transito.groupby('Referencia')['Cantidad'].sum()
+                  .reset_index().rename(columns={'Cantidad': 'En_transito'}))
+            cot_prev = cot_prev.merge(_t, on='Referencia', how='left')
+        if st.session_state.df_transito2 is not None and not st.session_state.df_transito2.empty:
+            _t2 = (st.session_state.df_transito2.groupby('Referencia')['Cantidad'].sum()
+                   .reset_index().rename(columns={'Cantidad': 'En_transito2'}))
+            cot_prev = cot_prev.merge(_t2, on='Referencia', how='left')
         for _fc in ['En_transito', 'En_transito2', 'Cdm', 'Stock_seguridad', 'Lead_time', 'Var_CDM', 'Incremento']:
             if _fc not in cot_prev.columns:
                 cot_prev[_fc] = 0
