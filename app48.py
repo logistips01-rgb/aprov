@@ -3963,12 +3963,13 @@ elif menu == "🔍 Previsión y Obsoletos":
                     cdm_ef = max(cdm * (1 + var_cdm / 100), 0.01)
                 disponible  = pal_teorico + pal_transito + pal_transito2
                 stock_final = disponible - cdm_ef * lead
-                pedido_ef  = math.ceil(seg + cdm_ef * lead - stock_final + incremento)
-                pedido_min = math.ceil(seg + cdm * lead - (disponible - cdm * lead) + incremento)
+                pedido_ef  = math.ceil(seg + cdm_ef * lead - disponible + incremento)
+                pedido_min = math.ceil(seg + cdm * lead    - disponible + incremento)
                 pedido = max(pedido_ef, pedido_min, 0)
                 return pal_actual, pal_nec, pal_transito, pal_transito2, pal_teorico, seg_pal, cdm_pal, pedido, f"🔴 FALTA STOCK: {pedido} Pal.", "#721c24"
 
-            # Fórmula idéntica al dashboard, con pal_teorico como stock_op
+            # Fórmula Previsión: SS + CDM × lead = stock_teórico + tránsito
+            # Pedido = diferencia entre objetivo y disponible (Var negativo no reduce)
             cdm_ef = cdm
             if abs(var_cdm) >= 15:
                 cdm_ef = max(cdm * (1 + var_cdm / 100), 0.01)
@@ -3976,8 +3977,8 @@ elif menu == "🔍 Previsión y Obsoletos":
             stock_final = stock_op + pal_transito + pal_transito2 - cdm_ef * lead
             if stock_final < seg:
                 disponible = stock_op + pal_transito + pal_transito2
-                pedido_ef  = math.ceil(seg + cdm_ef * lead - stock_final + incremento)
-                pedido_min = math.ceil(seg + cdm * lead - (disponible - cdm * lead) + incremento)
+                pedido_ef  = math.ceil(seg + cdm_ef * lead - disponible + incremento)
+                pedido_min = math.ceil(seg + cdm * lead    - disponible + incremento)
                 pedido = max(pedido_ef, pedido_min, 0)
                 dias_teorico = (stock_op / cdm_ef) if cdm_ef > 0 else 999
                 if stock_op < seg or dias_teorico < lead:
