@@ -3959,18 +3959,19 @@ elif menu == "🔍 Previsión y Obsoletos":
             disponible  = pal_teorico + pal_transito + pal_transito2
             stock_final = disponible - cdm_ef * lead
 
+            # pedido = lo que falta para llegar a SS al final del lead time
+            # (SS + CDM*lead - disponible), no dobla el CDM*lead como el dashboard
+            def _pedido_prev(cdm_x):
+                return max(math.ceil(seg + cdm_x * lead - disponible + incremento), 0)
+
             # Rojo: no hay stock suficiente para la producción planificada
             if pal_teorico < 0:
-                pedido_ef  = math.ceil(seg + cdm_ef * lead - stock_final + incremento)
-                pedido_min = math.ceil(seg + cdm * lead - (disponible - cdm * lead) + incremento)
-                pedido = max(pedido_ef, pedido_min, 0)
+                pedido = max(_pedido_prev(cdm_ef), _pedido_prev(cdm), 0)
                 return pal_actual, pal_nec, pal_transito, pal_transito2, pal_teorico, seg_pal, cdm_pal, pedido, f"🔴 FALTA STOCK: {pedido} Pal.", "#721c24"
 
             # Amarillo: hay stock para producir pero el proyectado baja del SS
             if stock_final < seg:
-                pedido_ef  = math.ceil(seg + cdm_ef * lead - stock_final + incremento)
-                pedido_min = math.ceil(seg + cdm * lead - (disponible - cdm * lead) + incremento)
-                pedido = max(pedido_ef, pedido_min, 0)
+                pedido = max(_pedido_prev(cdm_ef), _pedido_prev(cdm), 0)
                 return pal_actual, pal_nec, pal_transito, pal_transito2, pal_teorico, seg_pal, cdm_pal, pedido, f"🟡 COMPRAR: {pedido} Pal.", "#856404"
 
             # Verde: todo OK
