@@ -1457,6 +1457,21 @@ elif menu == "📊 Dashboard":
         lambda row: pd.Series(calcular_alerta(row)), axis=1
     )
 
+    # --- DEBUG C12043 ---
+    _d43 = df[df['Referencia'] == 'C12043']
+    if not _d43.empty:
+        r43 = _d43.iloc[0]
+        u43 = max(1, r43.get('Unidades_palet', 1))
+        cdm43 = r43.get('Cdm', 0)
+        lead43 = r43.get('Lead_time', 0)
+        seg43 = r43.get('Stock_seguridad', 0)
+        sint43 = r43.get('Stock_interno', 0)
+        var43 = r43.get('Var_CDM', 0) or 0
+        cdmef43 = cdm43 * (1 + var43/100) if abs(var43) >= 15 else cdm43
+        pal_int43 = math.floor(sint43 / u43)
+        sf43 = pal_int43 - cdmef43 * lead43
+        st.write(f"### 🔍 DEBUG C12043 | SS={seg43} | CDM={round(cdm43,2)} | Lead={lead43} | Stock_interno={sint43} | Pal_int={pal_int43} | cdm_ef={round(cdmef43,2)} | stock_final={round(sf43,2)} | Color={r43.get('Color','?')}")
+
     # --- Días de cobertura (stock operativo / CDM) ---
     df['Dias_stock'] = df.apply(
         lambda r: round((r['Pal_Merca'] if r['Situacion'] == 'MERCA' else r['Pal_Interno']) / r['CDM_pal'])
