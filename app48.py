@@ -3911,7 +3911,7 @@ elif menu == "🔍 Previsión y Obsoletos":
         st.markdown("#### 📦 Bandejas — Previsión de pedido")
         st.caption("Stock teórico = stock actual − necesidad producción. El pedido cubre SS + CDM × lead_time incluido tránsito.")
 
-        _cols_prev = ['Referencia', 'Descripcion', 'Stock_interno', 'Unidades_palet',
+        _cols_prev = ['Referencia', 'Descripcion', 'Stock_interno', 'Stock_merca', 'Unidades_palet',
                       'Cdm', 'Stock_seguridad', 'Lead_time', 'Situacion', 'Var_CDM', 'Incremento']
         _cols_prev = [c for c in _cols_prev if c in df_band.columns]
         cot_prev = df_band[_cols_prev].copy()
@@ -3927,7 +3927,7 @@ elif menu == "🔍 Previsión y Obsoletos":
             _t2 = (st.session_state.df_transito2.groupby('Referencia')['Cantidad'].sum()
                    .reset_index().rename(columns={'Cantidad': 'En_transito2'}))
             cot_prev = cot_prev.merge(_t2, on='Referencia', how='left')
-        for _fc in ['En_transito', 'En_transito2', 'Cdm', 'Stock_seguridad', 'Lead_time', 'Var_CDM', 'Incremento']:
+        for _fc in ['En_transito', 'En_transito2', 'Stock_merca', 'Cdm', 'Stock_seguridad', 'Lead_time', 'Var_CDM', 'Incremento']:
             if _fc not in cot_prev.columns:
                 cot_prev[_fc] = 0
         cot_prev['En_transito']  = cot_prev['En_transito'].fillna(0)
@@ -3944,9 +3944,11 @@ elif menu == "🔍 Previsión y Obsoletos":
             incremento = row['Incremento'] or 0
             nec_ud     = row['Necesidad_ud'] or 0
 
-            pal_actual    = math.floor(row['Stock_interno'] / u_p)
+            situacion  = str(row.get('Situacion', 'ACTIVA')).strip().upper()
+            stk_op_ud  = row['Stock_merca'] if situacion == 'MERCA' else row['Stock_interno']
+            pal_actual    = math.floor(stk_op_ud / u_p)
             pal_nec       = math.ceil(nec_ud / u_p)
-            pal_teorico   = math.floor((row['Stock_interno'] - nec_ud) / u_p)
+            pal_teorico   = math.floor((stk_op_ud - nec_ud) / u_p)
             pal_transito  = math.floor(row['En_transito']  / u_p)
             pal_transito2 = math.floor(row['En_transito2'] / u_p)
             seg_pal = round(seg)
