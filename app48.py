@@ -3969,7 +3969,7 @@ elif menu == "🔍 Previsión y Obsoletos":
                 pedido = max(pedido_ef, pedido_min, 0)
                 return pal_actual, pal_nec, pal_transito, pal_transito2, pal_teorico, seg_pal, cdm_pal, pedido, f"🔴 FALTA STOCK: {pedido} Pal.", "#721c24"
 
-            if nec_pal == 0:
+            if pal_nec == 0:
                 # No se produce hoy: fórmula idéntica al dashboard tradicional → mismo resultado
                 stock_op    = pal_actual
                 stock_final = stock_op + pal_transito + pal_transito2 - cdm_ef * lead
