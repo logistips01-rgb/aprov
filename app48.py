@@ -4032,13 +4032,13 @@ elif menu == "🔍 Previsión y Obsoletos":
                 "#155724": ('background:#EAFAF1;color:#1E8449;', '#27AE60'),
             }
             col_labels = {
-                'Referencia': 'Ref.', 'Descripcion': 'Descripción',
+                'Referencia': 'Ref.', 'Descripcion': 'Descripción', 'Unidades_palet': 'Ud/Pal',
                 'Nec_pal': 'Nec.Prod', 'Pal_actual': 'Stock Act.',
                 'Transito1': 'Tráns.1', 'Transito2': 'Tráns.2',
                 'Stk_teorico': 'Stk.Teórico', 'SS': 'SS', 'CDM': 'CDM',
                 'Pedido': 'Pedido', 'Estado': 'Estado',
             }
-            cols_show = ['Referencia', 'Descripcion', 'Nec_pal', 'Pal_actual',
+            cols_show = ['Referencia', 'Descripcion', 'Unidades_palet', 'Nec_pal', 'Pal_actual',
                          'Transito1', 'Transito2', 'Stk_teorico', 'SS', 'CDM', 'Pedido', 'Estado']
             rows_html = ""
             for _, row in df_v.iterrows():
@@ -4077,7 +4077,7 @@ elif menu == "🔍 Previsión y Obsoletos":
 
         _render_prev_table(vista_prev)
 
-        _cols_exp = ['Referencia', 'Descripcion', 'Nec_pal', 'Pal_actual', 'Transito1', 'Transito2', 'Stk_teorico', 'SS', 'CDM', 'Pedido', 'Estado']
+        _cols_exp = ['Referencia', 'Descripcion', 'Unidades_palet', 'Nec_pal', 'Pal_actual', 'Transito1', 'Transito2', 'Stk_teorico', 'SS', 'CDM', 'Pedido', 'Estado']
         st.download_button("📥 Exportar Bandejas",
                            exportar_excel_prof(vista_prev[_cols_exp], "Bandejas"),
                            "prevision_bandejas.xlsx",
