@@ -1434,9 +1434,9 @@ elif menu == "📊 Dashboard":
         if stock_final < seg:
             disponible = stock_op + pal_transito + pal_transito2
             # Pedido con CDM efectivo (ajustado por variación)
-            pedido_ef  = math.ceil(seg + cdm_efectivo * lead - stock_final + incremento)
-            # Tope mínimo: siempre cubrir SS + CDM_base × lead (la variación es temporal)
-            pedido_min = math.ceil(seg + cdm * lead - (disponible - cdm * lead) + incremento)
+            pedido_ef  = math.ceil(seg + 1.5 * cdm_efectivo * lead - disponible + incremento)
+            # Tope mínimo: siempre cubrir SS + 1.5×CDM_base × lead (la variación es temporal)
+            pedido_min = math.ceil(seg + 1.5 * cdm * lead          - disponible + incremento)
             pedido = max(pedido_ef, pedido_min, 0)
             dias_stock_actual = (stock_op / cdm_efectivo) if cdm_efectivo > 0 else 999
             # Rojo si: ya estamos por debajo del stock de seguridad, o no llegamos al lead time
