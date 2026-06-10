@@ -1434,9 +1434,9 @@ elif menu == "📊 Dashboard":
         if stock_final < seg:
             disponible = stock_op + pal_transito + pal_transito2
             # Pedido con CDM efectivo (ajustado por variación)
-            pedido_ef  = math.ceil(seg + 1.5 * cdm_efectivo * lead - disponible + incremento)
-            # Tope mínimo: siempre cubrir SS + 1.5×CDM_base × lead (la variación es temporal)
-            pedido_min = math.ceil(seg + 1.5 * cdm * lead          - disponible + incremento)
+            pedido_ef  = math.ceil(seg + 1.25 * cdm_efectivo * lead - disponible + incremento)
+            # Tope mínimo: siempre cubrir SS + 1.25×CDM_base × lead (la variación es temporal)
+            pedido_min = math.ceil(seg + 1.25 * cdm * lead          - disponible + incremento)
             pedido = max(pedido_ef, pedido_min, 0)
             dias_stock_actual = (stock_op / cdm_efectivo) if cdm_efectivo > 0 else 999
             # Rojo si: ya estamos por debajo del stock de seguridad, o no llegamos al lead time
@@ -3975,8 +3975,8 @@ elif menu == "🔍 Previsión y Obsoletos":
                 stock_final = stock_op + pal_transito + pal_transito2 - cdm_ef * lead
                 if stock_final < seg:
                     disponible = stock_op + pal_transito + pal_transito2
-                    pedido_ef  = math.ceil(seg + cdm_ef * lead - stock_final + incremento)
-                    pedido_min = math.ceil(seg + cdm * lead - (disponible - cdm * lead) + incremento)
+                    pedido_ef  = math.ceil(seg + 1.25 * cdm_ef * lead - disponible + incremento)
+                    pedido_min = math.ceil(seg + 1.25 * cdm * lead    - disponible + incremento)
                     pedido = max(pedido_ef, pedido_min, 0)
                     dias_op = (stock_op / cdm_ef) if cdm_ef > 0 else 999
                     if stock_op < seg or dias_op < lead:
@@ -3989,8 +3989,8 @@ elif menu == "🔍 Previsión y Obsoletos":
                 stock_final = stock_op + pal_transito + pal_transito2 - cdm_ef * lead
                 if stock_final < seg:
                     disponible = stock_op + pal_transito + pal_transito2
-                    pedido_ef  = math.ceil(seg + cdm_ef * lead - disponible + incremento)
-                    pedido_min = math.ceil(seg + cdm * lead    - disponible + incremento)
+                    pedido_ef  = math.ceil(seg + 1.25 * cdm_ef * lead - disponible + incremento)
+                    pedido_min = math.ceil(seg + 1.25 * cdm * lead    - disponible + incremento)
                     pedido = max(pedido_ef, pedido_min, 0)
                     dias_teorico = (stock_op / cdm_ef) if cdm_ef > 0 else 999
                     if stock_op < seg or dias_teorico < lead:
