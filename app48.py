@@ -1427,25 +1427,18 @@ elif menu == "📊 Dashboard":
         # ACTIVA/BAJA: stock operativo = Interno (AL6 + AL6 SGA)
         stock_op = pal_merca if situacion == 'MERCA' else pal_int
 
-        necesidad_bruta = cdm_efectivo * lead
-        stock_final = stock_op + pal_transito + pal_transito2 - necesidad_bruta
+        disponible = stock_op + pal_transito + pal_transito2
+        pedido_ef  = math.ceil(seg + 1.25 * cdm_efectivo * lead - disponible + incremento)
+        pedido_min = math.ceil(seg + 1.25 * cdm * lead          - disponible + incremento)
+        pedido = max(pedido_ef, pedido_min, 0)
 
-        # Alerta: no llegamos al stock de seguridad
-        if stock_final < seg:
-            disponible = stock_op + pal_transito + pal_transito2
-            # Pedido con CDM efectivo (ajustado por variación)
-            pedido_ef  = math.ceil(seg + 1.25 * cdm_efectivo * lead - disponible + incremento)
-            # Tope mínimo: siempre cubrir SS + 1.25×CDM_base × lead (la variación es temporal)
-            pedido_min = math.ceil(seg + 1.25 * cdm * lead          - disponible + incremento)
-            pedido = max(pedido_ef, pedido_min, 0)
+        if pedido > 0:
             dias_stock_actual = (stock_op / cdm_efectivo) if cdm_efectivo > 0 else 999
-            # Rojo si: ya estamos por debajo del stock de seguridad, o no llegamos al lead time
             if stock_op < seg or dias_stock_actual < lead:
                 return pal_int, pal_merca, pal_txt, pal_avitrans, pal_transito, pal_transito2, seg_pal, cdm_pal, f"🔴 COMPRAR: {pedido} Pal.", "#721c24"
             else:
                 return pal_int, pal_merca, pal_txt, pal_avitrans, pal_transito, pal_transito2, seg_pal, cdm_pal, f"🟡 COMPRAR: {pedido} Pal.", "#856404"
 
-        # Sin necesidad de pedir -> siempre verde
         msg = "🟢 OK"
         if pal_transito > 0 or pal_transito2 > 0:
             msg += f" (🚢 {pal_transito + pal_transito2} Pal. en tránsito)"
@@ -3962,46 +3955,29 @@ elif menu == "🔍 Previsión y Obsoletos":
 
             # Rojo directo: no hay stock suficiente para la producción planificada
             if pal_teorico < 0:
-                disponible  = pal_teorico + pal_transito + pal_transito2
-                stock_final = disponible - cdm_ef * lead
-                pedido_ef  = math.ceil(seg + cdm_ef * lead - disponible + incremento)
-                pedido_min = math.ceil(seg + cdm * lead    - disponible + incremento)
+                disponible = pal_teorico + pal_transito + pal_transito2
+                pedido_ef  = math.ceil(seg + 1.25 * cdm_ef * lead - disponible + incremento)
+                pedido_min = math.ceil(seg + 1.25 * cdm * lead    - disponible + incremento)
                 pedido = max(pedido_ef, pedido_min, 0)
                 return pal_actual, pal_nec, pal_transito, pal_transito2, pal_teorico, seg_pal, cdm_pal, pedido, f"🔴 FALTA STOCK: {pedido} Pal.", "#721c24"
 
-            if pal_nec == 0:
-                # No se produce hoy: fórmula idéntica al dashboard tradicional → mismo resultado
-                stock_op    = pal_actual
-                stock_final = stock_op + pal_transito + pal_transito2 - cdm_ef * lead
-                if stock_final < seg:
-                    disponible = stock_op + pal_transito + pal_transito2
-                    pedido_ef  = math.ceil(seg + 1.25 * cdm_ef * lead - disponible + incremento)
-                    pedido_min = math.ceil(seg + 1.25 * cdm * lead    - disponible + incremento)
-                    pedido = max(pedido_ef, pedido_min, 0)
-                    dias_op = (stock_op / cdm_ef) if cdm_ef > 0 else 999
-                    if stock_op < seg or dias_op < lead:
-                        return pal_actual, pal_nec, pal_transito, pal_transito2, pal_teorico, seg_pal, cdm_pal, pedido, f"🔴 COMPRAR: {pedido} Pal.", "#721c24"
-                    else:
-                        return pal_actual, pal_nec, pal_transito, pal_transito2, pal_teorico, seg_pal, cdm_pal, pedido, f"🟡 COMPRAR: {pedido} Pal.", "#856404"
-            else:
-                # Se produce hoy: usar stock teórico con fórmula SS + CDM×lead − disponible
-                stock_op    = pal_teorico
-                stock_final = stock_op + pal_transito + pal_transito2 - cdm_ef * lead
-                if stock_final < seg:
-                    disponible = stock_op + pal_transito + pal_transito2
-                    pedido_ef  = math.ceil(seg + 1.25 * cdm_ef * lead - disponible + incremento)
-                    pedido_min = math.ceil(seg + 1.25 * cdm * lead    - disponible + incremento)
-                    pedido = max(pedido_ef, pedido_min, 0)
-                    dias_teorico = (stock_op / cdm_ef) if cdm_ef > 0 else 999
-                    if stock_op < seg or dias_teorico < lead:
-                        return pal_actual, pal_nec, pal_transito, pal_transito2, pal_teorico, seg_pal, cdm_pal, pedido, f"🔴 COMPRAR: {pedido} Pal.", "#721c24"
-                    else:
-                        return pal_actual, pal_nec, pal_transito, pal_transito2, pal_teorico, seg_pal, cdm_pal, pedido, f"🟡 COMPRAR: {pedido} Pal.", "#856404"
-            pedido = 0
+            stock_op   = pal_actual if pal_nec == 0 else pal_teorico
+            disponible = stock_op + pal_transito + pal_transito2
+            pedido_ef  = math.ceil(seg + 1.25 * cdm_ef * lead - disponible + incremento)
+            pedido_min = math.ceil(seg + 1.25 * cdm * lead    - disponible + incremento)
+            pedido = max(pedido_ef, pedido_min, 0)
+
+            if pedido > 0:
+                dias_op = (stock_op / cdm_ef) if cdm_ef > 0 else 999
+                if stock_op < seg or dias_op < lead:
+                    return pal_actual, pal_nec, pal_transito, pal_transito2, pal_teorico, seg_pal, cdm_pal, pedido, f"🔴 COMPRAR: {pedido} Pal.", "#721c24"
+                else:
+                    return pal_actual, pal_nec, pal_transito, pal_transito2, pal_teorico, seg_pal, cdm_pal, pedido, f"🟡 COMPRAR: {pedido} Pal.", "#856404"
+
             estado = "🟢 OK"
             if pal_transito + pal_transito2 > 0:
                 estado += f" (🚢 {pal_transito + pal_transito2} Pal.)"
-            return pal_actual, pal_nec, pal_transito, pal_transito2, pal_teorico, seg_pal, cdm_pal, pedido, estado, "#155724"
+            return pal_actual, pal_nec, pal_transito, pal_transito2, pal_teorico, seg_pal, cdm_pal, 0, estado, "#155724"
 
         cot_prev[['Pal_actual', 'Nec_pal', 'Transito1', 'Transito2', 'Stk_teorico',
                    'SS', 'CDM', 'Pedido', 'Estado', 'Color']] = cot_prev.apply(
