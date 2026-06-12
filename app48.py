@@ -453,9 +453,10 @@ def check_password():
             pwd = st.text_input("pwd", type="password", placeholder="Contraseña", label_visibility="collapsed")
             submitted = st.form_submit_button("Entrar", use_container_width=True)
             if submitted:
-                pwd_admin   = get_password("APP_PASSWORD", "aldelis2025")
-                pwd_id      = get_password("ID_PASSWORD", "aldelis_id")
-                pwd_almacen = get_password("ALMACEN_PASSWORD", "aldelis_almacen")
+                pwd_admin    = get_password("APP_PASSWORD",       "aldelis2025")
+                pwd_id       = get_password("ID_PASSWORD",        "aldelis_id")
+                pwd_almacen  = get_password("ALMACEN_PASSWORD",   "aldelis_almacen")
+                pwd_comercial= get_password("COMERCIAL_PASSWORD", "comercial")
                 if pwd == pwd_admin:
                     st.session_state.autenticado = True
                     st.session_state.rol_usuario = "admin"
@@ -469,6 +470,11 @@ def check_password():
                 elif pwd == pwd_almacen:
                     st.session_state.autenticado = True
                     st.session_state.rol_usuario = "almacen"
+                    st.session_state._splash = True
+                    st.rerun()
+                elif pwd == pwd_comercial:
+                    st.session_state.autenticado = True
+                    st.session_state.rol_usuario = "comercial"
                     st.session_state._splash = True
                     st.rerun()
                 else:
@@ -1063,10 +1069,14 @@ GRUPOS_ADMIN = {
     "Producción": ["🔍 Previsión y Obsoletos"],
     "Análisis": ["🎯 SS Óptimo"],
 }
-GRUPOS_ID = {"Etiquetas": ["🏷️ Etiquetas"]}
-GRUPOS_ALMACEN = {"Etiquetas": ["🏷️ Etiquetas"]}
+GRUPOS_ID       = {"Etiquetas":    ["🏷️ Etiquetas"]}
+GRUPOS_ALMACEN  = {"Etiquetas":    ["🏷️ Etiquetas"]}
+GRUPOS_COMERCIAL= {"Logística":    ["🧠 Logística AI"]}
 
-GRUPOS = GRUPOS_ADMIN if ROL == "admin" else (GRUPOS_ID if ROL == "id" else GRUPOS_ALMACEN)
+GRUPOS = (GRUPOS_ADMIN    if ROL == "admin"    else
+          GRUPOS_ID        if ROL == "id"       else
+          GRUPOS_COMERCIAL if ROL == "comercial" else
+          GRUPOS_ALMACEN)
 
 LABELS_MENU = {
     "📂 Cargar Archivos": "Cargar Archivos",
@@ -1086,8 +1096,8 @@ LABELS_MENU = {
 }
 
 # Rol badge en sidebar
-rol_label = {"admin": "Admin", "id": "I+D", "almacen": "Almacen"}.get(ROL, ROL)
-rol_color = {"admin": "#C8102E", "id": "#2980B9", "almacen": "#27AE60"}.get(ROL, "#888")
+rol_label = {"admin": "Admin", "id": "I+D", "almacen": "Almacén", "comercial": "Comercial"}.get(ROL, ROL)
+rol_color = {"admin": "#C8102E", "id": "#2980B9", "almacen": "#27AE60", "comercial": "#8E44AD"}.get(ROL, "#888")
 st.sidebar.markdown(f'<div style="margin-bottom:12px;padding:6px 10px;background:rgba(255,255,255,0.06);border-radius:6px;font-size:11px;color:#BDC3C7;">Conectado como <span style="color:{rol_color};font-weight:600;">{rol_label}</span></div>', unsafe_allow_html=True)
 
 for grupo, items in GRUPOS.items():
