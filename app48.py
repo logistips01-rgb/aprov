@@ -368,13 +368,12 @@ def check_password():
         @keyframes logoZoom {{
             0%   {{ transform: scale(0.04); opacity: 0; }}
             8%   {{ opacity: 1; }}
-            60%  {{ transform: scale(1); }}
             100% {{ transform: scale(3.5); opacity: 0.85; }}
         }}
         .splash-logo {{
             width: 320px;
             mix-blend-mode: multiply;
-            animation: logoZoom 3.8s cubic-bezier(0.25, 0.1, 0.25, 1) forwards;
+            animation: logoZoom 3.8s ease-in forwards;
         }}
         </style>
         <div class="splash-wrap">
