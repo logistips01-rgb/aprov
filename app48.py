@@ -5152,12 +5152,19 @@ INSTRUCCIONES:
                 st.subheader("🏗️ Resultado en palet (1200×800×2000mm)")
 
                 if e_l and e_a and e_h:
-                    # Cajas en palet
-                    cajas_l = palet_l // e_l
-                    cajas_a = palet_a // e_a
+                    # Probar ambas orientaciones y elegir la que más cajas da por capa
+                    capa_n = (palet_l // e_l) * (palet_a // e_a)
+                    capa_g = (palet_l // e_a) * (palet_a // e_l)
+                    if capa_g > capa_n:
+                        cajas_l, cajas_a = palet_l // e_a, palet_a // e_l
+                        orient_txt = "girada 90°"
+                    else:
+                        cajas_l, cajas_a = palet_l // e_l, palet_a // e_a
+                        orient_txt = "normal"
                     cajas_h = palet_h // e_h
                     cajas_palet = cajas_l * cajas_a * cajas_h
                     total_ud_palet = cajas_palet * uds_calculadas
+                    st.caption(f"Orientación óptima: **{orient_txt}** ({cajas_l} × {cajas_a} por capa)")
                     cp1, cp2, cp3, cp4, cp5 = st.columns(5)
                     cp1.metric("Cajas/capa", cajas_l * cajas_a)
                     cp2.metric("Capas de cajas", cajas_h)
