@@ -3968,8 +3968,7 @@ elif menu == "🔍 Previsión y Obsoletos":
             pedido = max(pedido_ef, pedido_min, 0)
 
             if pedido > 0:
-                dias_op = (stock_op / cdm_ef) if cdm_ef > 0 else 999
-                if stock_op < seg or dias_op < lead:
+                if disponible < seg:
                     return pal_actual, pal_nec, pal_transito, pal_transito2, pal_teorico, seg_pal, cdm_pal, pedido, f"🔴 COMPRAR: {pedido} Pal.", "#721c24"
                 else:
                     return pal_actual, pal_nec, pal_transito, pal_transito2, pal_teorico, seg_pal, cdm_pal, pedido, f"🟡 COMPRAR: {pedido} Pal.", "#856404"
