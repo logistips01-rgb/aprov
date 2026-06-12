@@ -1279,6 +1279,8 @@ def mostrar_calculadora_paletizado():
                 uds_calculadas = uds_caja
 
             palet_l, palet_a, palet_h = 1200, 800, 2000
+            ALTURA_PALET = 150  # altura del palet de madera
+            altura_apilable = palet_h - ALTURA_PALET  # 1850 mm útiles
             st.subheader("🏗️ Resultado en palet (1200×800×2000mm)")
 
             if e_l and e_a and e_h:
@@ -1290,26 +1292,27 @@ def mostrar_calculadora_paletizado():
                 else:
                     cajas_l, cajas_a = palet_l // e_l, palet_a // e_a
                     orient_txt = "normal"
-                cajas_h = palet_h // e_h
+                cajas_h = altura_apilable // e_h
                 cajas_palet = cajas_l * cajas_a * cajas_h
                 total_ud_palet = cajas_palet * uds_calculadas
-                st.caption(f"Orientación óptima: **{orient_txt}** ({cajas_l} × {cajas_a} por capa)")
+                altura_total = ALTURA_PALET + cajas_h * e_h
+                st.caption(f"Orientación óptima: **{orient_txt}** ({cajas_l} × {cajas_a} por capa) · Palet: 150mm + {cajas_h}×{e_h}mm cajas")
                 cp1, cp2, cp3, cp4, cp5 = st.columns(5)
                 cp1.metric("Cajas/capa", cajas_l * cajas_a)
                 cp2.metric("Capas de cajas", cajas_h)
                 cp3.metric("Cajas/palet", cajas_palet)
                 cp4.metric("Uds/palet", total_ud_palet)
-                cp5.metric("Altura total", f"{cajas_h * e_h} mm")
+                cp5.metric("Altura total", f"{altura_total} mm")
             else:
                 bp_l = palet_l // b_l
                 bp_a = palet_a // b_a
-                bp_h = palet_h // b_h
+                bp_h = altura_apilable // b_h
                 total_palet = bp_l * bp_a * bp_h
                 cp1, cp2, cp3, cp4 = st.columns(4)
                 cp1.metric("Por capa", bp_l * bp_a)
                 cp2.metric("Capas", bp_h)
                 cp3.metric("Total/palet", total_palet)
-                cp4.metric("Altura total", f"{bp_h * b_h} mm")
+                cp4.metric("Altura total", f"{ALTURA_PALET + bp_h * b_h} mm")
                 cajas_l = cajas_a = 1
                 cajas_h = bp_h
                 e_l = e_a = e_h = b_l
