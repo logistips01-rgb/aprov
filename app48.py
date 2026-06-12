@@ -179,7 +179,7 @@ st.markdown("""
 
 /* Sidebar */
 [data-testid="stSidebar"] {
-  background: #2C3E50 !important;
+  background: #1A252F !important;
   border-right: none !important;
 }
 [data-testid="stSidebar"] > div:first-child {
@@ -228,13 +228,13 @@ st.markdown("""
 [data-testid="stSidebar"] .stButton > button:hover {
   background: rgba(255,255,255,0.07) !important;
   color: white !important;
-  border-left-color: rgba(231,76,60,0.5) !important;
+  border-left-color: rgba(200,16,46,0.5) !important;
 }
 [data-testid="stSidebar"] .stButton > button:focus {
-  background: rgba(231,76,60,0.15) !important;
+  background: rgba(200,16,46,0.15) !important;
   color: white !important;
-  border-left-color: #E74C3C !important;
-  box-shadow: inset 0 0 0 1px rgba(231,76,60,0.3) !important;
+  border-left-color: #C8102E !important;
+  box-shadow: inset 0 0 0 1px rgba(200,16,46,0.3) !important;
 }
 
 /* Metricas */
@@ -257,9 +257,9 @@ section.main .stButton > button {
   transition: all 0.15s !important;
 }
 section.main .stButton > button:hover {
-  background: #E74C3C !important;
+  background: #C8102E !important;
   color: white !important;
-  border-color: #E74C3C !important;
+  border-color: #C8102E !important;
 }
 
 /* Selectbox e inputs */
@@ -293,8 +293,8 @@ header[data-testid="stHeader"] { background: #ECF0F1 !important; border-bottom: 
   background: white !important;
 }
 .stTextInput input:focus, .stTextArea textarea:focus {
-  border-color: #E74C3C !important;
-  box-shadow: 0 0 0 2px rgba(231,76,60,0.15) !important;
+  border-color: #C8102E !important;
+  box-shadow: 0 0 0 2px rgba(200,16,46,0.15) !important;
 }
 
 /* Selectbox borde fino */
@@ -313,7 +313,7 @@ header[data-testid="stHeader"] { background: #ECF0F1 !important; border-bottom: 
 
 /* Botón submit rojo */
 [data-testid="stFormSubmitButton"] button {
-  background: #E74C3C !important;
+  background: #C8102E !important;
   color: white !important;
   border: none !important;
   border-radius: 6px !important;
@@ -1042,13 +1042,17 @@ def exportar_excel_prof(df, sheet_name="Datos", color_col=None):
 # NAVEGACIÓN
 # ─────────────────────────────────────────────
 # Logo sidebar
-st.sidebar.markdown("""
-<div style="display:flex;align-items:center;gap:10px;padding:0 4px 16px;border-bottom:1px solid #e5e5e5;margin-bottom:12px;">
-  <div style="width:32px;height:32px;border-radius:8px;background:#E74C3C;display:flex;align-items:center;justify-content:center;color:white;font-weight:600;font-size:14px;flex-shrink:0;">A</div>
-  <div>
-    <div style="font-size:14px;font-weight:600;color:#111;line-height:1.2;">Aldelis</div>
-    <div style="font-size:10px;color:#888;">Aprovisionamiento</div>
+import base64 as _b64_sb
+_logo_sb = ""
+if os.path.exists("assets/logo_aldelis.png"):
+    with open("assets/logo_aldelis.png", "rb") as _f:
+        _logo_sb = _b64_sb.b64encode(_f.read()).decode()
+st.sidebar.markdown(f"""
+<div style="padding:12px 8px 16px;border-bottom:1px solid rgba(255,255,255,0.08);margin-bottom:12px;">
+  <div style="background:white;border-radius:10px;padding:10px 16px;text-align:center;">
+    <img src="data:image/png;base64,{_logo_sb}" style="width:120px;" />
   </div>
+  <div style="font-size:10px;color:#5D6D7E;margin-top:8px;text-align:center;letter-spacing:0.08em;text-transform:uppercase;">Aprovisionamiento</div>
 </div>
 """, unsafe_allow_html=True)
 
@@ -1083,7 +1087,7 @@ LABELS_MENU = {
 
 # Rol badge en sidebar
 rol_label = {"admin": "Admin", "id": "I+D", "almacen": "Almacen"}.get(ROL, ROL)
-rol_color = {"admin": "#E74C3C", "id": "#2980B9", "almacen": "#27AE60"}.get(ROL, "#888")
+rol_color = {"admin": "#C8102E", "id": "#2980B9", "almacen": "#27AE60"}.get(ROL, "#888")
 st.sidebar.markdown(f'<div style="margin-bottom:12px;padding:6px 10px;background:rgba(255,255,255,0.06);border-radius:6px;font-size:11px;color:#BDC3C7;">Conectado como <span style="color:{rol_color};font-weight:600;">{rol_label}</span></div>', unsafe_allow_html=True)
 
 for grupo, items in GRUPOS.items():
@@ -1092,7 +1096,7 @@ for grupo, items in GRUPOS.items():
         label = LABELS_MENU.get(item, item)
         is_active = st.session_state.get("menu_activo") == item
         if is_active:
-            st.sidebar.markdown(f'''<div style="border-left:3px solid #E74C3C;background:rgba(231,76,60,0.15);border-radius:0 6px 6px 0;padding:7px 10px;margin-bottom:2px;color:white;font-size:12px;font-weight:600;">&#9679; {label}</div>''', unsafe_allow_html=True)
+            st.sidebar.markdown(f'''<div style="border-left:3px solid #C8102E;background:rgba(200,16,46,0.15);border-radius:0 6px 6px 0;padding:7px 10px;margin-bottom:2px;color:white;font-size:12px;font-weight:600;">&#9679; {label}</div>''', unsafe_allow_html=True)
         else:
             if st.sidebar.button(f"● {label}", key=f"nav_{item}", use_container_width=True):
                 st.session_state["menu_activo"] = item
@@ -1663,7 +1667,7 @@ elif menu == "📊 Dashboard":
 
     def render_dashboard_table(df_vista, cols):
         badge_map = {
-            "#721c24": ('background:#FDEDEC;color:#C0392B;', '#E74C3C'),
+            "#721c24": ('background:#FDEDEC;color:#C0392B;', '#C8102E'),
             "#856404": ('background:#FEF9E7;color:#D68910;', '#F39C12'),
             "#155724": ('background:#EAFAF1;color:#1E8449;', '#27AE60'),
         }
@@ -1693,7 +1697,7 @@ elif menu == "📊 Dashboard":
                 elif col == 'Var_CDM':
                     v = int(val) if val else 0
                     if v > 20:
-                        style = "font-weight:700;color:#E74C3C;"
+                        style = "font-weight:700;color:#C8102E;"
                         txt = f"▲ +{v}%"
                     elif v > 0:
                         style = "font-weight:600;color:#E08A1A;"
@@ -1707,7 +1711,7 @@ elif menu == "📊 Dashboard":
                     cells += f'<td style="padding:8px 12px;{style}">{txt}</td>'
                 elif col == 'Pedido_pal':
                     v = int(val) if val else 0
-                    style = "font-weight:600;color:#E74C3C;" if v > 0 else "color:#aaa;"
+                    style = "font-weight:600;color:#C8102E;" if v > 0 else "color:#aaa;"
                     cells += f'<td style="padding:8px 12px;{style}">{v if v > 0 else "-"}</td>'
                 elif col == 'Oferta':
                     _pronto = row.get('Oferta_pronto', False)
@@ -2018,7 +2022,7 @@ elif menu == "📦 Envases":
     # ── Función render tabla HTML reutilizable ─────────────
     def _render_env_table(df_vista, cols, color_col='Color', estado_col='Estado', pedido_col='Pedido'):
         badge_map = {
-            "#721c24": ('background:#FDEDEC;color:#C0392B;', '#E74C3C'),
+            "#721c24": ('background:#FDEDEC;color:#C0392B;', '#C8102E'),
             "#856404": ('background:#FEF9E7;color:#D68910;', '#F39C12'),
             "#155724": ('background:#EAFAF1;color:#1E8449;', '#27AE60'),
         }
@@ -2038,7 +2042,7 @@ elif menu == "📦 Envases":
                     cells += f'<td style="padding:8px 10px;">{estado_badge}</td>'
                 elif col == pedido_col:
                     v = int(val) if val else 0
-                    style = "font-weight:600;color:#E74C3C;" if v > 0 else "color:#aaa;"
+                    style = "font-weight:600;color:#C8102E;" if v > 0 else "color:#aaa;"
                     cells += f'<td style="padding:8px 10px;{style}">{v if v > 0 else "—"}</td>'
                 elif col == 'Descripcion':
                     cells += f'<td style="padding:8px 10px;color:#7F8C8D;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="{val}">{str(val)[:30]}</td>'
@@ -3013,9 +3017,9 @@ elif menu == "🏷️ Etiquetas":
             "Activo": ("#EAFAF1", "#1E8449"),
         }
 
-        def email_plantilla(titulo, campos, color_estado="#E74C3C"):
+        def email_plantilla(titulo, campos, color_estado="#C8102E"):
             BADGE_COLORS = {
-                "#E74C3C": ("Pendiente",      "#FDEDEC", "#C0392B"),
+                "#C8102E": ("Pendiente",      "#FDEDEC", "#C0392B"),
                 "#F39C12": ("En preparación", "#FEF9E7", "#D68910"),
                 "#27AE60": ("Activo",         "#EAFAF1", "#1E8449"),
             }
@@ -3109,7 +3113,7 @@ elif menu == "🏷️ Etiquetas":
 </body>
 </html>"""
 
-        def enviar_email_cambio(asunto, campos, color_estado="#E74C3C", cambio_data=None):
+        def enviar_email_cambio(asunto, campos, color_estado="#C8102E", cambio_data=None):
             try:
                 import smtplib
                 from email.mime.text import MIMEText
@@ -3488,7 +3492,7 @@ elif menu == "🏷️ Etiquetas":
                                 "Descripción": cambio.get("descripcion",""),
                                 "Observaciones": cambio.get("observaciones",""),
                             }
-                            color_notif = {"Pendiente":"#E74C3C","En preparacion":"#F39C12","Activo":"#27AE60"}.get(estado,"#E74C3C")
+                            color_notif = {"Pendiente":"#C8102E","En preparacion":"#F39C12","Activo":"#27AE60"}.get(estado,"#C8102E")
                             ok_mail, err_mail = enviar_email_cambio(f"Notificación cambio {tipo_label.lower()}: {ref}", campos_notif, color_notif, cambio)
                             if ok_mail:
                                 st.success("📧 Notificación enviada ✓")
@@ -3513,7 +3517,7 @@ elif menu == "🏷️ Etiquetas":
                                         "Fecha 1ª producción": cambio.get("fecha_primera_produccion","—") if agotar else "",
                                         "Nota gestión": nota_g or "—",
                                     }
-                                    color_est = {"En preparacion":"#F39C12","Activo":"#27AE60"}.get(nuevo_est,"#E74C3C")
+                                    color_est = {"En preparacion":"#F39C12","Activo":"#27AE60"}.get(nuevo_est,"#C8102E")
                                     ok_mail, err_mail = enviar_email_cambio(f"Cambio {tipo_label.lower()} {ref} → {nuevo_est}", campos_est, color_est, cambio)
                                     if ok_mail:
                                         st.session_state["email_feedback"] = (f"✅ Estado → {nuevo_est} · Email enviado ✓", "ok")
@@ -3817,7 +3821,7 @@ elif menu == "🏷️ Etiquetas":
 
         def render_etq_table(df_vista, cols):
             badge_map = {
-                "#721c24": ('background:#FDEDEC;color:#C0392B;', '#E74C3C'),
+                "#721c24": ('background:#FDEDEC;color:#C0392B;', '#C8102E'),
                 "#856404": ('background:#FEF9E7;color:#D68910;', '#F39C12'),
                 "#155724": ('background:#EAFAF1;color:#1E8449;', '#27AE60'),
             }
@@ -3836,7 +3840,7 @@ elif menu == "🏷️ Etiquetas":
                         cells += f'<td style="padding:8px 10px;">{estado_badge}</td>'
                     elif col == 'Pedido_ud':
                         v = int(val) if val else 0
-                        style = "font-weight:600;color:#E74C3C;" if v > 0 else "color:#aaa;"
+                        style = "font-weight:600;color:#C8102E;" if v > 0 else "color:#aaa;"
                         cells += f'<td style="padding:8px 10px;{style}">{v if v > 0 else "—"}</td>'
                     elif col == 'Descripcion':
                         cells += f'<td style="padding:8px 10px;color:#7F8C8D;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="{val}">{str(val)[:30]}</td>'
@@ -4108,7 +4112,7 @@ elif menu == "🔍 Previsión y Obsoletos":
 
         def _render_prev_table(df_v):
             badge_map = {
-                "#721c24": ('background:#FDEDEC;color:#C0392B;', '#E74C3C'),
+                "#721c24": ('background:#FDEDEC;color:#C0392B;', '#C8102E'),
                 "#856404": ('background:#FEF9E7;color:#D68910;', '#F39C12'),
                 "#155724": ('background:#EAFAF1;color:#1E8449;', '#27AE60'),
             }
@@ -4140,11 +4144,11 @@ elif menu == "🔍 Previsión y Obsoletos":
                         cells += f'<td style="padding:8px 12px;color:#666;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="{val}">{str(val)[:35]}</td>'
                     elif col == 'Pedido':
                         v = int(val) if val else 0
-                        style = "font-weight:600;color:#E74C3C;" if v > 0 else "color:#aaa;"
+                        style = "font-weight:600;color:#C8102E;" if v > 0 else "color:#aaa;"
                         cells += f'<td style="padding:8px 12px;{style}">{v if v > 0 else "-"}</td>'
                     elif col == 'Stk_teorico':
                         v = int(val) if val is not None else 0
-                        style = "font-weight:600;color:#E74C3C;" if v < 0 else "color:#555;"
+                        style = "font-weight:600;color:#C8102E;" if v < 0 else "color:#555;"
                         cells += f'<td style="padding:8px 12px;{style}">{v}</td>'
                     else:
                         cells += f'<td style="padding:8px 12px;color:#555;">{val}</td>'
@@ -4190,10 +4194,29 @@ elif menu == "🔍 Previsión y Obsoletos":
             elif filtro_etq == "📋 Solo planificadas":
                 vista_etq = vista_etq[vista_etq['Necesidad_ud'] > 0]
 
+            col_labels_e = {'Referencia':'Ref.','Descripcion':'Descripción','Necesidad_ud':'Nec. Ud','Stock_total_ud':'Stock Ud','Dif_ud':'Diferencia','Estado':'Estado'}
             cols_e = ['Referencia', 'Descripcion', 'Necesidad_ud', 'Stock_total_ud', 'Dif_ud', 'Estado']
-            def color_etq_p(row):
-                return [f'background-color: {cot_etq.loc[row.name, "Color"]}; color: white'] * len(row)
-            st.dataframe(vista_etq[cols_e].style.apply(color_etq_p, axis=1), use_container_width=True, height=400)
+            badge_e = {"🔴": ('background:#FDEDEC;color:#C0392B;','#C8102E'), "🟢": ('background:#EAFAF1;color:#1E8449;','#27AE60'), "⚪": ('background:#F4F6F7;color:#7F8C8D;','#BDC3C7')}
+            rows_e = ""
+            for _, row in vista_etq.iterrows():
+                dif = int(row.get('Dif_ud', 0) or 0)
+                estado = str(row.get('Estado', ''))
+                key = next((k for k in badge_e if estado.startswith(k)), "⚪")
+                bs, dot_c = badge_e[key]
+                dot = f'<span style="width:6px;height:6px;border-radius:50%;background:{dot_c};display:inline-block;margin-right:4px;"></span>'
+                estado_txt = estado.replace('🔴 ','').replace('🟢 ','').replace('⚪ ','')
+                badge_html = f'<span style="display:inline-flex;align-items:center;{bs}padding:3px 8px;border-radius:20px;font-size:11px;font-weight:500;">{dot}{estado_txt}</span>'
+                row_bg = "background:#FEF9F9;" if dif < 0 else "background:#F0FBF4;"
+                cells_e = f'<td style="padding:8px 12px;font-weight:600;color:#2C3E50;">{row.get("Referencia","")}</td>'
+                cells_e += f'<td style="padding:8px 12px;color:#666;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="{row.get("Descripcion","")}">{str(row.get("Descripcion",""))[:40]}</td>'
+                cells_e += f'<td style="padding:8px 12px;color:#555;">{int(row.get("Necesidad_ud",0) or 0)}</td>'
+                cells_e += f'<td style="padding:8px 12px;color:#555;">{int(row.get("Stock_total_ud",0) or 0)}</td>'
+                dif_style = "font-weight:600;color:#C8102E;" if dif < 0 else "color:#27AE60;font-weight:600;"
+                cells_e += f'<td style="padding:8px 12px;{dif_style}">{dif}</td>'
+                cells_e += f'<td style="padding:8px 12px;">{badge_html}</td>'
+                rows_e += f'<tr style="border-bottom:1px solid #F2F3F4;{row_bg}">{cells_e}</tr>'
+            hdrs_e = "".join([f'<th style="padding:7px 12px;text-align:left;font-size:10px;font-weight:700;color:#5D6D7E;text-transform:uppercase;letter-spacing:0.05em;background:#F4F6F7;border-bottom:2px solid #D5D8DC;">{col_labels_e.get(c,c)}</th>' for c in cols_e])
+            st.markdown(f'<div style="background:white;border-radius:10px;border:1px solid #D5D8DC;overflow:hidden;margin-top:8px;"><div style="overflow-x:auto;max-height:420px;overflow-y:auto;"><table style="width:100%;border-collapse:collapse;font-size:12px;"><thead style="position:sticky;top:0;z-index:1;"><tr>{hdrs_e}</tr></thead><tbody>{rows_e}</tbody></table></div></div>', unsafe_allow_html=True)
             st.download_button("📥 Exportar Etiquetas",
                                exportar_excel_prof(vista_etq[cols_e], "Etiquetas"),
                                "cotejo_etiquetas.xlsx",
@@ -4209,7 +4232,21 @@ elif menu == "🔍 Previsión y Obsoletos":
         else:
             st.warning(f"⚠️ {len(sin_maestro)} materiales sin configurar:")
             cols_sm = [c for c in ['Codigo', 'Descripcion', 'Apro'] if c in sin_maestro.columns]
-            st.dataframe(sin_maestro[cols_sm].reset_index(drop=True), use_container_width=True)
+            col_labels_sm = {'Codigo': 'Código', 'Descripcion': 'Descripción', 'Apro': 'Aprov.'}
+            rows_sm = ""
+            for _, row in sin_maestro[cols_sm].reset_index(drop=True).iterrows():
+                cells_sm = ""
+                for c in cols_sm:
+                    val = str(row.get(c, '') or '')
+                    if c == 'Codigo':
+                        cells_sm += f'<td style="padding:8px 12px;font-weight:600;color:#2C3E50;">{val}</td>'
+                    elif c == 'Descripcion':
+                        cells_sm += f'<td style="padding:8px 12px;color:#666;max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="{val}">{val[:45]}</td>'
+                    else:
+                        cells_sm += f'<td style="padding:8px 12px;color:#555;">{val}</td>'
+                rows_sm += f'<tr style="border-bottom:1px solid #F2F3F4;background:#FFFBF0;">{cells_sm}</tr>'
+            hdrs_sm = "".join([f'<th style="padding:7px 12px;text-align:left;font-size:10px;font-weight:700;color:#5D6D7E;text-transform:uppercase;letter-spacing:0.05em;background:#F4F6F7;border-bottom:2px solid #D5D8DC;">{col_labels_sm.get(c,c)}</th>' for c in cols_sm])
+            st.markdown(f'<div style="background:white;border-radius:10px;border:1px solid #D5D8DC;overflow:hidden;margin-top:8px;"><div style="overflow-x:auto;max-height:500px;overflow-y:auto;"><table style="width:100%;border-collapse:collapse;font-size:12px;"><thead style="position:sticky;top:0;z-index:1;"><tr>{hdrs_sm}</tr></thead><tbody>{rows_sm}</tbody></table></div></div>', unsafe_allow_html=True)
             st.download_button("📥 Exportar Sin Maestro",
                                exportar_excel_prof(sin_maestro[cols_sm], "Sin_maestro"),
                                "sin_maestro.xlsx",
@@ -4272,17 +4309,24 @@ elif menu == "🔍 Previsión y Obsoletos":
                 elif filtro_obs in ["Bandeja", "Etiqueta"]:
                     vista_obs = vista_obs[vista_obs['Tipo'] == filtro_obs]
 
-                def colorear_obs(row):
-                    styles = [''] * len(row.index)
-                    try:
-                        idx_mov = list(row.index).index('Movimientos')
-                        if row['Movimientos'] == '🔴 CON MOVIMIENTOS':
-                            styles[idx_mov] = 'background-color: #721c24; color: white'
-                    except Exception:
-                        pass
-                    return styles
-
-                st.dataframe(vista_obs.reset_index(drop=True).style.apply(colorear_obs, axis=1), use_container_width=True)
+                cols_obs = ['Referencia', 'Descripcion', 'Stock', 'Tipo', 'Movimientos']
+                col_labels_obs = {'Referencia':'Ref.','Descripcion':'Descripción','Stock':'Stock Ud','Tipo':'Tipo','Movimientos':'Movimientos'}
+                rows_obs = ""
+                for _, row in vista_obs.reset_index(drop=True).iterrows():
+                    mov = str(row.get('Movimientos', ''))
+                    con_mov = mov == '🔴 CON MOVIMIENTOS'
+                    row_bg = "background:#FEF9F9;" if con_mov else "background:#FAFAFA;"
+                    mov_badge = f'<span style="display:inline-flex;align-items:center;{"background:#FDEDEC;color:#C0392B;" if con_mov else "background:#F4F6F7;color:#7F8C8D;"}padding:3px 8px;border-radius:20px;font-size:11px;font-weight:500;"><span style="width:6px;height:6px;border-radius:50%;background:{"#C8102E" if con_mov else "#BDC3C7"};display:inline-block;margin-right:4px;"></span>{"Con movimientos" if con_mov else "Sin movimientos"}</span>'
+                    tipo = str(row.get('Tipo', ''))
+                    tipo_badge = f'<span style="background:{"#EBF5FB" if tipo=="Bandeja" else "#F4ECF7"};color:{"#1A5276" if tipo=="Bandeja" else "#6C3483"};padding:2px 8px;border-radius:10px;font-size:11px;">{tipo}</span>'
+                    cells_obs = f'<td style="padding:8px 12px;font-weight:600;color:#2C3E50;">{row.get("Referencia","")}</td>'
+                    cells_obs += f'<td style="padding:8px 12px;color:#666;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="{row.get("Descripcion","")}">{str(row.get("Descripcion",""))[:40]}</td>'
+                    cells_obs += f'<td style="padding:8px 12px;color:#555;">{int(row.get("Stock",0) or 0)}</td>'
+                    cells_obs += f'<td style="padding:8px 12px;">{tipo_badge}</td>'
+                    cells_obs += f'<td style="padding:8px 12px;">{mov_badge}</td>'
+                    rows_obs += f'<tr style="border-bottom:1px solid #F2F3F4;{row_bg}">{cells_obs}</tr>'
+                hdrs_obs = "".join([f'<th style="padding:7px 12px;text-align:left;font-size:10px;font-weight:700;color:#5D6D7E;text-transform:uppercase;letter-spacing:0.05em;background:#F4F6F7;border-bottom:2px solid #D5D8DC;">{col_labels_obs.get(c,c)}</th>' for c in cols_obs])
+                st.markdown(f'<div style="background:white;border-radius:10px;border:1px solid #D5D8DC;overflow:hidden;margin-top:8px;"><div style="overflow-x:auto;max-height:500px;overflow-y:auto;"><table style="width:100%;border-collapse:collapse;font-size:12px;"><thead style="position:sticky;top:0;z-index:1;"><tr>{hdrs_obs}</tr></thead><tbody>{rows_obs}</tbody></table></div></div>', unsafe_allow_html=True)
 
                 st.download_button("📥 Exportar Obsoletos",
                                    exportar_excel_prof(vista_obs, "Obsoletos"),
