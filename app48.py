@@ -1428,8 +1428,8 @@ elif menu == "📊 Dashboard":
         stock_op = pal_merca if situacion == 'MERCA' else pal_int
 
         disponible = stock_op + pal_transito + pal_transito2
-        pedido_ef  = math.ceil(seg + 1.25 * cdm_efectivo * lead - disponible + incremento)
-        pedido_min = math.ceil(seg + 1.25 * cdm * lead          - disponible + incremento)
+        pedido_ef  = math.ceil(seg + 1.5 * cdm_efectivo * lead - disponible + incremento)
+        pedido_min = math.ceil(seg + 1.5 * cdm * lead          - disponible + incremento)
         pedido = max(pedido_ef, pedido_min, 0)
 
         if pedido > 0:
@@ -3956,15 +3956,15 @@ elif menu == "🔍 Previsión y Obsoletos":
             # Rojo directo: no hay stock suficiente para la producción planificada
             if pal_teorico < 0:
                 disponible = pal_teorico + pal_transito + pal_transito2
-                pedido_ef  = math.ceil(seg + 1.25 * cdm_ef * lead - disponible + incremento)
-                pedido_min = math.ceil(seg + 1.25 * cdm * lead    - disponible + incremento)
+                pedido_ef  = math.ceil(seg + 1.5 * cdm_ef * lead - disponible + incremento)
+                pedido_min = math.ceil(seg + 1.5 * cdm * lead    - disponible + incremento)
                 pedido = max(pedido_ef, pedido_min, 0)
                 return pal_actual, pal_nec, pal_transito, pal_transito2, pal_teorico, seg_pal, cdm_pal, pedido, f"🔴 FALTA STOCK: {pedido} Pal.", "#721c24"
 
             stock_op   = pal_actual if pal_nec == 0 else pal_teorico
             disponible = stock_op + pal_transito + pal_transito2
-            pedido_ef  = math.ceil(seg + 1.25 * cdm_ef * lead - disponible + incremento)
-            pedido_min = math.ceil(seg + 1.25 * cdm * lead    - disponible + incremento)
+            pedido_ef  = math.ceil(seg + 1.5 * cdm_ef * lead - disponible + incremento)
+            pedido_min = math.ceil(seg + 1.5 * cdm * lead    - disponible + incremento)
             pedido = max(pedido_ef, pedido_min, 0)
 
             if pedido > 0:
