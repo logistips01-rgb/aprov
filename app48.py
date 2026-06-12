@@ -373,14 +373,14 @@ def check_password():
         .splash-logo {{
             width: 320px;
             mix-blend-mode: multiply;
-            animation: logoZoom 3.8s ease-in forwards;
+            animation: logoZoom 9s ease-in forwards;
         }}
         </style>
         <div class="splash-wrap">
             <img src="data:image/png;base64,{_logo_b64}" class="splash-logo" />
         </div>
         """, unsafe_allow_html=True)
-        _time.sleep(4.0)
+        _time.sleep(9.2)
         st.session_state._splash = False
         st.rerun()
         return
