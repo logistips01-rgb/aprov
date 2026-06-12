@@ -1151,13 +1151,18 @@ if menu == "📂 Cargar Archivos":
              .rename(columns={'Palets_dia': 'Cdm'})
         )
 
-        # --- DEBUG C12232: verificar CDM ---
-        _ref_dbg = 'C12232'
-        _c12_dia = c_dia[c_dia['Referencia'] == _ref_dbg]
-        _c12_cdm = cdm[cdm['Referencia'] == _ref_dbg]
-        st.write("### 🔍 DEBUG C12232")
-        st.write(f"Días usados para CDM: {len(_c12_dia)} | CDM resultado: {_c12_cdm['Cdm'].values}")
-        st.dataframe(_c12_dia[['Fecha', 'Cantidad', 'Unidades_palet', 'Palets_dia']], use_container_width=True)
+        # --- DEBUG CDM: resumen por referencia ---
+        st.write("### 🔍 DEBUG CDM")
+        _debug_cols = st.columns(3)
+        for _i, _ref in enumerate(['C12232', 'C12261', 'C12043']):
+            _dias = c_dia[c_dia['Referencia'] == _ref]
+            _cdm_val = cdm[cdm['Referencia'] == _ref]['Cdm'].values
+            _cdm_str = f"{_cdm_val[0]:.3f}" if len(_cdm_val) else "—"
+            _debug_cols[_i].metric(
+                label=_ref,
+                value=f"CDM: {_cdm_str} pal/día",
+                delta=f"{len(_dias)} días con movimiento"
+            )
 
         # --- Quedarse solo con las columnas necesarias del Maestro ---
         cols_m = COL_MAESTRO + [c for c in COL_MAESTRO_OPT if c in m.columns]
