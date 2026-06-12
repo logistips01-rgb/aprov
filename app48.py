@@ -440,7 +440,10 @@ def check_password():
         """, height=0)
 
         if os.path.exists("assets/logo_aldelis.png"):
-            st.image("assets/logo_aldelis.png", width=200)
+            import base64 as _b64
+            with open("assets/logo_aldelis.png", "rb") as _lf:
+                _logo_login = _b64.b64encode(_lf.read()).decode()
+            st.markdown(f'<div style="text-align:center;margin-bottom:4px;"><img src="data:image/png;base64,{_logo_login}" style="width:200px;mix-blend-mode:multiply;" /></div>', unsafe_allow_html=True)
         else:
             st.markdown('<div style="text-align:center;font-size:34px;font-weight:800;color:#C8102E;margin-bottom:4px;font-family:Georgia,serif;">Aldelis</div>', unsafe_allow_html=True)
 
