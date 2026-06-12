@@ -4225,14 +4225,24 @@ elif menu == "🔍 Previsión y Obsoletos":
     # ══ TAB 2: SIN MAESTRO ══════════════════════════════════════
     with tab2:
         st.subheader("Materiales en planificación no configurados en ningún maestro")
-        refs_todos_maestros = refs_maestro_band | refs_maestro_etq
-        sin_maestro = df_plan[~df_plan['Codigo'].isin(refs_todos_maestros)].copy()
+        _sit_col = 'Situacion' if 'Situacion' in df_band.columns else None
+        refs_activas_band = set(
+            df_band[df_band[_sit_col].str.strip().str.upper() == 'ACTIVA']['Referencia']
+            if _sit_col else df_band['Referencia']
+        )
+        refs_activas_etq = set()
+        if df_etq_cp is not None and 'Situacion' in df_etq_cp.columns:
+            refs_activas_etq = set(df_etq_cp[df_etq_cp['Situacion'].str.strip().str.upper() == 'ACTIVA']['Referencia'])
+        elif df_etq_cp is not None:
+            refs_activas_etq = set(df_etq_cp['Referencia'])
+        refs_activas = refs_activas_band | refs_activas_etq
+        sin_maestro = df_plan[~df_plan['Codigo'].isin(refs_activas)].copy()
         if sin_maestro.empty:
-            st.success("✅ Todos los materiales están configurados en los maestros.")
+            st.success("✅ Todas las referencias planificadas están activas en los maestros.")
         else:
-            st.warning(f"⚠️ {len(sin_maestro)} materiales sin configurar:")
+            st.warning(f"⚠️ {len(sin_maestro)} referencias planificadas sin maestro activo:")
             cols_sm = [c for c in ['Codigo', 'Descripcion', 'Apro'] if c in sin_maestro.columns]
-            col_labels_sm = {'Codigo': 'Código', 'Descripcion': 'Descripción', 'Apro': 'Aprov.'}
+            col_labels_sm = {'Codigo': 'Código', 'Descripcion': 'Descripción', 'Apro': 'Cantidad'}
             rows_sm = ""
             for _, row in sin_maestro[cols_sm].reset_index(drop=True).iterrows():
                 cells_sm = ""
