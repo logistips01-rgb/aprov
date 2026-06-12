@@ -1071,7 +1071,7 @@ GRUPOS_ADMIN = {
 }
 GRUPOS_ID       = {"Etiquetas":    ["🏷️ Etiquetas"]}
 GRUPOS_ALMACEN  = {"Etiquetas":    ["🏷️ Etiquetas"]}
-GRUPOS_COMERCIAL= {"Logística":    ["🧠 Logística AI"]}
+GRUPOS_COMERCIAL= {"Logística":    ["📐 Calculadora Paletizado"]}
 
 GRUPOS = (GRUPOS_ADMIN    if ROL == "admin"    else
           GRUPOS_ID        if ROL == "id"       else
@@ -1093,6 +1093,7 @@ LABELS_MENU = {
     "🎯 SS Óptimo": "SS Optimo",
     "📦 Envases": "Envases",
     "🤖 Agente IA": "Agente IA",
+    "📐 Calculadora Paletizado": "Calculadora Palet",
 }
 
 # Rol badge en sidebar
@@ -1126,6 +1127,280 @@ if st.sidebar.button("Cerrar sesion", key="logout", use_container_width=True):
     st.rerun()
 
 st.sidebar.markdown('<div style="margin-top:8px;font-size:10px;color:#4a4a4a;text-align:center;">v2.0 - Aprovisionamiento Aldelis</div>', unsafe_allow_html=True)
+
+# ══════════════════════════════════════════════
+# CALCULADORA PALETIZADO (función reutilizable)
+# ══════════════════════════════════════════════
+def mostrar_calculadora_paletizado():
+    st.subheader("📦 Calculadora de Paletización")
+
+    col_pal1, col_pal2, col_pal3 = st.columns(3)
+    with col_pal1:
+        ref_producto = st.text_input("Referencia producto (opcional):", key="pal_prod").strip().upper().zfill(6)
+    with col_pal2:
+        ref_bandeja = st.text_input("Referencia bandeja (ej: C12170):", key="pal_ref").strip().upper()
+    with col_pal3:
+        envases_disponibles = []
+        if st.session_state.df_paletizacion is not None:
+            df_pal_tmp = normalizar_columnas(st.session_state.df_paletizacion.copy())
+            envases_disponibles = df_pal_tmp.iloc[:,0].astype(str).str.strip().tolist()
+        ref_envase = st.selectbox("Selecciona envase:", [""] + envases_disponibles, key="pal_env")
+        ref_envase = ref_envase.strip().upper() if ref_envase else ""
+
+    if st.button("🔢 Calcular paletización"):
+        import re as re_pal
+
+        if ref_producto and ref_producto != '000000' and not ref_bandeja:
+            if st.session_state.df_materiales is not None and st.session_state.df_final is not None:
+                mat_cp = st.session_state.df_materiales.copy()
+                mat_cp['Referencia'] = mat_cp['Referencia'].astype(str).str.strip().str.upper().str.zfill(6)
+                mat_cp['Codigo']     = mat_cp['Codigo'].astype(str).str.strip().str.upper()
+                refs_band = set(st.session_state.df_final['Referencia'].astype(str).str.strip().str.upper())
+                prod_mats = mat_cp[mat_cp['Referencia'] == ref_producto]
+                bandeja_encontrada = prod_mats[prod_mats['Codigo'].isin(refs_band)]
+                if not bandeja_encontrada.empty:
+                    ref_bandeja = bandeja_encontrada.iloc[0]['Codigo']
+                    st.info(f"🔍 Producto {ref_producto} usa bandeja: **{ref_bandeja}**")
+                else:
+                    st.warning(f"No se encontró bandeja asociada al producto {ref_producto} en el maestro.")
+
+        desc_band = None
+        b_l = b_a = b_h = None
+        if ref_bandeja and st.session_state.df_final is not None:
+            df_b = st.session_state.df_final.copy()
+            df_b['Referencia'] = df_b['Referencia'].astype(str).str.strip().str.upper()
+            fila = df_b[df_b['Referencia'] == ref_bandeja]
+            if not fila.empty:
+                desc_band = fila.iloc[0].get('Descripcion', '')
+                nums = re_pal.findall(r'\d+', str(desc_band))
+                if len(nums) >= 3:
+                    b_l = int(nums[0]) * 10
+                    b_a = int(nums[1]) * 10
+                    b_h = int(nums[2])
+                    st.session_state['pal_b_l'] = b_l
+                    st.session_state['pal_b_a'] = b_a
+                    st.session_state['pal_b_h'] = b_h
+                    st.session_state['pal_ref_band'] = ref_bandeja
+
+        e_l = e_a = e_h = None
+        uds_caja = None
+        if ref_envase and st.session_state.df_paletizacion is not None:
+            df_pal_bus = st.session_state.df_paletizacion.copy()
+            df_pal_bus = normalizar_columnas(df_pal_bus)
+            col_int = None
+            for col in df_pal_bus.columns:
+                if 'inter' in col.lower():
+                    col_int = col
+                    break
+            col_ext = None
+            for col in df_pal_bus.columns:
+                if 'exter' in col.lower() or (col != col_int and ('dim' in col.lower() or 'mm' in col.lower())):
+                    col_ext = col
+                    break
+            df_pal_bus['Envase_upper'] = df_pal_bus.iloc[:,0].astype(str).str.upper().str.strip()
+            ref_env_upper = ref_envase.upper().strip()
+            fila_env = df_pal_bus[df_pal_bus['Envase_upper'] == ref_env_upper]
+            if fila_env.empty:
+                fila_env = df_pal_bus[df_pal_bus['Envase_upper'].str.contains(ref_env_upper, na=False)]
+            if not fila_env.empty and col_int:
+                dim_str = str(fila_env.iloc[0][col_int])
+                nums = re_pal.findall(r'\d+', dim_str)
+                if len(nums) >= 3:
+                    e_l, e_a, e_h = int(nums[0]), int(nums[1]), int(nums[2])
+                for col in df_pal_bus.columns:
+                    if 'caja' in col.lower():
+                        try:
+                            uds_caja = int(fila_env.iloc[0][col])
+                        except:
+                            pass
+                        break
+            if e_l is None:
+                st.warning(f"No se encontró '{ref_envase}' en el archivo de paletización.")
+
+        if b_l and b_a and b_h:
+            st.success(f"🏷️ Bandeja **{ref_bandeja}**: {b_l}×{b_a}×{b_h} mm")
+
+            if e_l and e_a and e_h:
+                st.success(f"📦 Envase **{ref_envase}** (interior): {e_l}×{e_a}×{e_h} mm")
+                HOLGURA_GAS = 5
+                MARGEN_CAJA = 4
+                MARGEN_LATERAL = 5
+                b_h_real = b_h + HOLGURA_GAS
+                altura_util = e_h - MARGEN_CAJA
+                e_l_ef = e_l + MARGEN_LATERAL
+                e_a_ef = e_a + MARGEN_LATERAL
+
+                fi_l_n = e_l_ef // b_l
+                fi_a_n = e_a_ef // b_a
+                fi_h_n = altura_util // b_h_real
+                uds_normal = fi_l_n * fi_a_n * fi_h_n
+
+                fi_l_g = e_l_ef // b_a
+                fi_a_g = e_a_ef // b_l
+                fi_h_g = altura_util // b_h_real
+                uds_girada = fi_l_g * fi_a_g * fi_h_g
+
+                zona_a_cols = e_l_ef // b_l
+                resto_l = e_l_ef - (zona_a_cols * b_l)
+                zona_b_cols = resto_l // b_a
+                filas_mixtas = e_a_ef // b_a
+                uds_mixta_1 = (zona_a_cols * filas_mixtas + zona_b_cols * (e_a_ef // b_l)) * fi_h_n
+
+                zona_a_cols2 = e_l_ef // b_a
+                resto_l2 = e_l_ef - (zona_a_cols2 * b_a)
+                zona_b_cols2 = resto_l2 // b_l
+                uds_mixta_2 = (zona_a_cols2 * (e_a_ef // b_l) + zona_b_cols2 * (e_a_ef // b_a)) * fi_h_n
+
+                uds_mixta = max(uds_mixta_1, uds_mixta_2)
+
+                mejor = max(uds_normal, uds_girada, uds_mixta)
+                if mejor == uds_mixta and uds_mixta > uds_normal and uds_mixta > uds_girada:
+                    uds_calculadas = uds_mixta
+                    orientacion = "🔀 Mixta"
+                    fi_l, fi_a, fi_h = zona_a_cols, filas_mixtas, fi_h_n
+                elif uds_girada >= uds_normal:
+                    fi_l, fi_a, fi_h = fi_l_g, fi_a_g, fi_h_g
+                    uds_calculadas = uds_girada
+                    orientacion = "↺ Girada (ancho×largo)"
+                else:
+                    fi_l, fi_a, fi_h = fi_l_n, fi_a_n, fi_h_n
+                    uds_calculadas = uds_normal
+                    orientacion = "→ Normal (largo×ancho)"
+
+                st.info(f"🔄 **{orientacion}** - {uds_calculadas} uds/caja | Normal: {uds_normal} | Girada: {uds_girada} | Mixta: {uds_mixta}")
+                st.subheader("📊 Resultado en caja")
+                cc1, cc2, cc3, cc4 = st.columns(4)
+                cc1.metric("Por fila (largo)", fi_l)
+                cc2.metric("Por fila (ancho)", fi_a)
+                cc3.metric("Capas en caja", fi_h)
+                cc4.metric("Total por caja", uds_calculadas)
+            else:
+                st.warning(f"No se encontraron dimensiones para '{ref_envase}'. Asegúrate de que está indexado.")
+                uds_calculadas = uds_caja
+
+            palet_l, palet_a, palet_h = 1200, 800, 2000
+            st.subheader("🏗️ Resultado en palet (1200×800×2000mm)")
+
+            if e_l and e_a and e_h:
+                capa_n = (palet_l // e_l) * (palet_a // e_a)
+                capa_g = (palet_l // e_a) * (palet_a // e_l)
+                if capa_g > capa_n:
+                    cajas_l, cajas_a = palet_l // e_a, palet_a // e_l
+                    orient_txt = "girada 90°"
+                else:
+                    cajas_l, cajas_a = palet_l // e_l, palet_a // e_a
+                    orient_txt = "normal"
+                cajas_h = palet_h // e_h
+                cajas_palet = cajas_l * cajas_a * cajas_h
+                total_ud_palet = cajas_palet * uds_calculadas
+                st.caption(f"Orientación óptima: **{orient_txt}** ({cajas_l} × {cajas_a} por capa)")
+                cp1, cp2, cp3, cp4, cp5 = st.columns(5)
+                cp1.metric("Cajas/capa", cajas_l * cajas_a)
+                cp2.metric("Capas de cajas", cajas_h)
+                cp3.metric("Cajas/palet", cajas_palet)
+                cp4.metric("Uds/palet", total_ud_palet)
+                cp5.metric("Altura total", f"{cajas_h * e_h} mm")
+            else:
+                bp_l = palet_l // b_l
+                bp_a = palet_a // b_a
+                bp_h = palet_h // b_h
+                total_palet = bp_l * bp_a * bp_h
+                cp1, cp2, cp3, cp4 = st.columns(4)
+                cp1.metric("Por capa", bp_l * bp_a)
+                cp2.metric("Capas", bp_h)
+                cp3.metric("Total/palet", total_palet)
+                cp4.metric("Altura total", f"{bp_h * b_h} mm")
+                cajas_l = cajas_a = 1
+                cajas_h = bp_h
+                e_l = e_a = e_h = b_l
+                uds_calculadas = 1
+
+    st.divider()
+    _b_l = st.session_state.get('pal_b_l')
+    _b_a = st.session_state.get('pal_b_a')
+    _b_h = st.session_state.get('pal_b_h')
+    _ref_band = st.session_state.get('pal_ref_band', '')
+    if _b_l:
+        st.caption(f"Bandeja en memoria: {_ref_band} ({_b_l}x{_b_a}x{_b_h}mm)")
+    if st.button("💡 Sugerir envase óptimo para esta bandeja") and _b_l and _b_a and _b_h:
+        b_l, b_a, b_h, ref_bandeja = _b_l, _b_a, _b_h, _ref_band
+        if True:
+            if st.session_state.df_paletizacion is None:
+                st.warning("Sube el archivo de paletizaciones en este módulo primero.")
+            else:
+                df_pal = st.session_state.df_paletizacion.copy()
+                df_pal = normalizar_columnas(df_pal)
+                import re as re_sug
+                resultados_envases = []
+                for _, row in df_pal.iterrows():
+                    envase_nombre = str(row.iloc[0])
+                    dim_int_col = None
+                    for col in df_pal.columns:
+                        if 'inter' in col.lower():
+                            dim_int_col = col
+                            break
+                    if dim_int_col is None:
+                        continue
+                    dim_str = str(row.get(dim_int_col, ''))
+                    nums = re_sug.findall(r'\d+', dim_str)
+                    if len(nums) < 3:
+                        continue
+                    el, ea, eh = int(nums[0]), int(nums[1]), int(nums[2])
+                    HOLGURA_GAS = 5
+                    MARGEN_CAJA = 4
+                    h_util = eh - MARGEN_CAJA
+                    bh_r   = b_h + HOLGURA_GAS
+                    uds_n = (el // b_l) * (ea // b_a) * (h_util // bh_r)
+                    uds_g = (el // b_a) * (ea // b_l) * (h_util // bh_r)
+                    if uds_g > uds_n:
+                        fi_l, fi_a, fi_h = el // b_a, ea // b_l, h_util // bh_r
+                        uds = uds_g
+                    else:
+                        fi_l, fi_a, fi_h = el // b_l, ea // b_a, h_util // bh_r
+                        uds = uds_n
+                    if uds > 0:
+                        resultados_envases.append({
+                            'Envase': envase_nombre,
+                            'Dim interior (mm)': f"{el}x{ea}x{eh}",
+                            'Filas L': fi_l,
+                            'Filas A': fi_a,
+                            'Capas': fi_h,
+                            'Uds/caja': uds,
+                            'Aprovechamiento %': round(uds * b_l * b_a * b_h / (el * ea * eh) * 100, 1)
+                        })
+                if resultados_envases:
+                    df_res = pd.DataFrame(resultados_envases).sort_values('Uds/caja', ascending=False)
+                    st.subheader(f"Envases compatibles con bandeja {ref_bandeja} ({b_l}x{b_a}x{b_h}mm)")
+                    st.dataframe(df_res.reset_index(drop=True), use_container_width=True)
+                    mejor = df_res.iloc[0]
+                    tabla_str = df_res.to_string(index=False)
+                    dim_band = f"{b_l}x{b_a}x{b_h}mm"
+                    prompt_sug = f"Analiza estos envases para la bandeja {ref_bandeja} ({dim_band}) y da una recomendacion al comercial:\n\n{tabla_str}\n\nEl envase con mas unidades por caja es {mejor['Envase']} con {mejor['Uds/caja']} unidades. Explica brevemente las ventajas e inconvenientes de los 3 mejores y cual recomendarias y por que, en lenguaje sencillo para un comercial."
+                    try:
+                        from groq import Groq as GroqSug
+                        import os as _os
+                        from dotenv import load_dotenv as _ldenv
+                        _ldenv()
+                        _gkey = _os.getenv('GROQ_API_KEY', '') or GROQ_API_KEY
+                        groq_sug = GroqSug(api_key=_gkey)
+                        resp_sug = groq_sug.chat.completions.create(
+                            model="llama-3.1-8b-instant",
+                            messages=[
+                                {"role": "system", "content": "Eres un experto en logistica y packaging de Aldelis. Responde en espanol, de forma clara y practica para un comercial."},
+                                {"role": "user", "content": prompt_sug}
+                            ],
+                            max_tokens=800,
+                            temperature=0.3
+                        )
+                        st.info("🤖 " + resp_sug.choices[0].message.content)
+                    except Exception as e:
+                        st.warning(f"No se pudo obtener sugerencia IA: {e}")
+                else:
+                    st.warning("No se encontraron envases compatibles con esta bandeja.")
+    elif not _b_l:
+        st.info("Introduce una referencia de bandeja o producto para calcular.")
+
+
 
 # ══════════════════════════════════════════════
 # MÓDULO 1: CARGAR ARCHIVOS
@@ -4999,291 +5274,12 @@ INSTRUCCIONES:
 
         # ── Calculadora de Paletización ───
         st.divider()
-        st.subheader("📦 Calculadora de Paletización")
+        mostrar_calculadora_paletizado()
 
-        col_pal1, col_pal2, col_pal3 = st.columns(3)
-        with col_pal1:
-            ref_producto = st.text_input("Referencia producto (opcional):", key="pal_prod").strip().upper().zfill(6)
-        with col_pal2:
-            ref_bandeja = st.text_input("Referencia bandeja (ej: C12170):", key="pal_ref").strip().upper()
-        with col_pal3:
-            envases_disponibles = []
-            if st.session_state.df_paletizacion is not None:
-                df_pal_tmp = normalizar_columnas(st.session_state.df_paletizacion.copy())
-                envases_disponibles = df_pal_tmp.iloc[:,0].astype(str).str.strip().tolist()
-            ref_envase = st.selectbox("Selecciona envase:", [""] + envases_disponibles, key="pal_env")
-            ref_envase = ref_envase.strip().upper() if ref_envase else ""
-
-        if st.button("🔢 Calcular paletización"):
-            import re as re_pal
-
-            # Si se da producto, buscar bandeja en materiales asociados
-            if ref_producto and ref_producto != '000000' and not ref_bandeja:
-                if st.session_state.df_materiales is not None and st.session_state.df_final is not None:
-                    mat_cp = st.session_state.df_materiales.copy()
-                    mat_cp['Referencia'] = mat_cp['Referencia'].astype(str).str.strip().str.upper().str.zfill(6)
-                    mat_cp['Codigo']     = mat_cp['Codigo'].astype(str).str.strip().str.upper()
-                    refs_band = set(st.session_state.df_final['Referencia'].astype(str).str.strip().str.upper())
-                    prod_mats = mat_cp[mat_cp['Referencia'] == ref_producto]
-                    bandeja_encontrada = prod_mats[prod_mats['Codigo'].isin(refs_band)]
-                    if not bandeja_encontrada.empty:
-                        ref_bandeja = bandeja_encontrada.iloc[0]['Codigo']
-                        st.info(f"🔍 Producto {ref_producto} usa bandeja: **{ref_bandeja}**")
-                    else:
-                        st.warning(f"No se encontró bandeja asociada al producto {ref_producto} en el maestro.")
-
-            # Buscar medidas bandeja
-            desc_band = None
-            b_l = b_a = b_h = None
-            if ref_bandeja and st.session_state.df_final is not None:
-                df_b = st.session_state.df_final.copy()
-                df_b['Referencia'] = df_b['Referencia'].astype(str).str.strip().str.upper()
-                fila = df_b[df_b['Referencia'] == ref_bandeja]
-                if not fila.empty:
-                    desc_band = fila.iloc[0].get('Descripcion', '')
-                    nums = re_pal.findall(r'\d+', str(desc_band))
-                    if len(nums) >= 3:
-                        b_l = int(nums[0]) * 10
-                        b_a = int(nums[1]) * 10
-                        b_h = int(nums[2])
-                        st.session_state['pal_b_l'] = b_l
-                        st.session_state['pal_b_a'] = b_a
-                        st.session_state['pal_b_h'] = b_h
-                        st.session_state['pal_ref_band'] = ref_bandeja
-
-            # Buscar medidas envase directamente en df_paletizacion
-            e_l = e_a = e_h = None
-            uds_caja = None
-            if ref_envase and st.session_state.df_paletizacion is not None:
-                df_pal_bus = st.session_state.df_paletizacion.copy()
-                df_pal_bus = normalizar_columnas(df_pal_bus)
-                # Buscar columna de dimensiones interiores
-                col_int = None
-                for col in df_pal_bus.columns:
-                    if 'inter' in col.lower():
-                        col_int = col
-                        break
-                col_ext = None
-                for col in df_pal_bus.columns:
-                    if 'exter' in col.lower() or (col != col_int and ('dim' in col.lower() or 'mm' in col.lower())):
-                        col_ext = col
-                        break
-                # Buscar por nombre de envase (búsqueda flexible)
-                df_pal_bus['Envase_upper'] = df_pal_bus.iloc[:,0].astype(str).str.upper().str.strip()
-                ref_env_upper = ref_envase.upper().strip()
-                # Buscar coincidencia exacta primero, luego parcial
-                fila_env = df_pal_bus[df_pal_bus['Envase_upper'] == ref_env_upper]
-                if fila_env.empty:
-                    fila_env = df_pal_bus[df_pal_bus['Envase_upper'].str.contains(ref_env_upper, na=False)]
-                if not fila_env.empty and col_int:
-                    dim_str = str(fila_env.iloc[0][col_int])
-                    nums = re_pal.findall(r'\d+', dim_str)
-                    if len(nums) >= 3:
-                        e_l, e_a, e_h = int(nums[0]), int(nums[1]), int(nums[2])
-                    # Numero de cajas
-                    for col in df_pal_bus.columns:
-                        if 'caja' in col.lower():
-                            try:
-                                uds_caja = int(fila_env.iloc[0][col])
-                            except:
-                                pass
-                            break
-                if e_l is None:
-                    st.warning(f"No se encontró '{ref_envase}' en el archivo de paletización.")
-
-            if b_l and b_a and b_h:
-                st.success(f"🏷️ Bandeja **{ref_bandeja}**: {b_l}×{b_a}×{b_h} mm")
-
-                # ── CÁLCULO CON ENVASE ────────────────────
-                if e_l and e_a and e_h:
-                    st.success(f"📦 Envase **{ref_envase}** (interior): {e_l}×{e_a}×{e_h} mm")
-                    HOLGURA_GAS = 5   # mm extra por capa por efecto del gas
-                    MARGEN_CAJA = 4   # mm libres en la parte superior de la caja
-                    MARGEN_LATERAL = 5  # mm de margen lateral de la caja por solape
-                    b_h_real = b_h + HOLGURA_GAS
-                    altura_util = e_h - MARGEN_CAJA
-                    e_l_ef = e_l + MARGEN_LATERAL  # largo efectivo con margen
-                    e_a_ef = e_a + MARGEN_LATERAL  # ancho efectivo con margen
-
-                    # Orientación normal: largo bandeja vs largo caja
-                    fi_l_n = e_l_ef // b_l
-                    fi_a_n = e_a_ef // b_a
-                    fi_h_n = altura_util // b_h_real
-                    uds_normal = fi_l_n * fi_a_n * fi_h_n
-
-                    # Orientación girada: ancho bandeja vs largo caja
-                    fi_l_g = e_l_ef // b_a
-                    fi_a_g = e_a_ef // b_l
-                    fi_h_g = altura_util // b_h_real
-                    uds_girada = fi_l_g * fi_a_g * fi_h_g
-
-                    # Orientación mixta: zona A normal + zona B girada (dividir largo caja)
-                    zona_a_cols = e_l_ef // b_l
-                    resto_l = e_l_ef - (zona_a_cols * b_l)
-                    zona_b_cols = resto_l // b_a
-                    filas_mixtas = e_a_ef // b_a
-                    uds_mixta_1 = (zona_a_cols * filas_mixtas + zona_b_cols * (e_a_ef // b_l)) * fi_h_n
-
-                    zona_a_cols2 = e_l_ef // b_a
-                    resto_l2 = e_l_ef - (zona_a_cols2 * b_a)
-                    zona_b_cols2 = resto_l2 // b_l
-                    uds_mixta_2 = (zona_a_cols2 * (e_a_ef // b_l) + zona_b_cols2 * (e_a_ef // b_a)) * fi_h_n
-
-                    uds_mixta = max(uds_mixta_1, uds_mixta_2)
-
-                    # Elegir la mejor de las 3
-                    mejor = max(uds_normal, uds_girada, uds_mixta)
-                    if mejor == uds_mixta and uds_mixta > uds_normal and uds_mixta > uds_girada:
-                        uds_calculadas = uds_mixta
-                        orientacion = "🔀 Mixta"
-                        fi_l, fi_a, fi_h = zona_a_cols, filas_mixtas, fi_h_n
-                    elif uds_girada >= uds_normal:
-                        fi_l, fi_a, fi_h = fi_l_g, fi_a_g, fi_h_g
-                        uds_calculadas = uds_girada
-                        orientacion = "↺ Girada (ancho×largo)"
-                    else:
-                        fi_l, fi_a, fi_h = fi_l_n, fi_a_n, fi_h_n
-                        uds_calculadas = uds_normal
-                        orientacion = "→ Normal (largo×ancho)"
-
-                    st.info(f"🔄 **{orientacion}** - {uds_calculadas} uds/caja | Normal: {uds_normal} | Girada: {uds_girada} | Mixta: {uds_mixta}")
-                    st.subheader("📊 Resultado en caja")
-                    cc1, cc2, cc3, cc4 = st.columns(4)
-                    cc1.metric("Por fila (largo)", fi_l)
-                    cc2.metric("Por fila (ancho)", fi_a)
-                    cc3.metric("Capas en caja", fi_h)
-                    cc4.metric("Total por caja", uds_calculadas)
-                else:
-                    st.warning(f"No se encontraron dimensiones para '{ref_envase}'. Asegúrate de que está indexado.")
-                    uds_calculadas = uds_caja
-
-                # ── CÁLCULO EN PALET ──────────────────────
-                palet_l, palet_a, palet_h = 1200, 800, 2000
-                st.subheader("🏗️ Resultado en palet (1200×800×2000mm)")
-
-                if e_l and e_a and e_h:
-                    # Probar ambas orientaciones y elegir la que más cajas da por capa
-                    capa_n = (palet_l // e_l) * (palet_a // e_a)
-                    capa_g = (palet_l // e_a) * (palet_a // e_l)
-                    if capa_g > capa_n:
-                        cajas_l, cajas_a = palet_l // e_a, palet_a // e_l
-                        orient_txt = "girada 90°"
-                    else:
-                        cajas_l, cajas_a = palet_l // e_l, palet_a // e_a
-                        orient_txt = "normal"
-                    cajas_h = palet_h // e_h
-                    cajas_palet = cajas_l * cajas_a * cajas_h
-                    total_ud_palet = cajas_palet * uds_calculadas
-                    st.caption(f"Orientación óptima: **{orient_txt}** ({cajas_l} × {cajas_a} por capa)")
-                    cp1, cp2, cp3, cp4, cp5 = st.columns(5)
-                    cp1.metric("Cajas/capa", cajas_l * cajas_a)
-                    cp2.metric("Capas de cajas", cajas_h)
-                    cp3.metric("Cajas/palet", cajas_palet)
-                    cp4.metric("Uds/palet", total_ud_palet)
-                    cp5.metric("Altura total", f"{cajas_h * e_h} mm")
-                else:
-                    # Sin envase, bandejas directo en palet
-                    bp_l = palet_l // b_l
-                    bp_a = palet_a // b_a
-                    bp_h = palet_h // b_h
-                    total_palet = bp_l * bp_a * bp_h
-                    cp1, cp2, cp3, cp4 = st.columns(4)
-                    cp1.metric("Por capa", bp_l * bp_a)
-                    cp2.metric("Capas", bp_h)
-                    cp3.metric("Total/palet", total_palet)
-                    cp4.metric("Altura total", f"{bp_h * b_h} mm")
-                    cajas_l = cajas_a = 1
-                    cajas_h = bp_h
-                    e_l = e_a = e_h = b_l
-                    uds_calculadas = 1
-
-            # SUGERENCIA IA DE ENVASE OPTIMO - placeholder dentro del calcular
-            pass
-
-        # Sugerencia fuera del bloque calcular
-        st.divider()
-        _b_l = st.session_state.get('pal_b_l')
-        _b_a = st.session_state.get('pal_b_a')
-        _b_h = st.session_state.get('pal_b_h')
-        _ref_band = st.session_state.get('pal_ref_band', '')
-        if _b_l:
-            st.caption(f"Bandeja en memoria: {_ref_band} ({_b_l}x{_b_a}x{_b_h}mm)")
-        if st.button("💡 Sugerir envase óptimo para esta bandeja") and _b_l and _b_a and _b_h:
-            b_l, b_a, b_h, ref_bandeja = _b_l, _b_a, _b_h, _ref_band
-            if True:
-                if st.session_state.df_paletizacion is None:
-                    st.warning("Sube el archivo de paletizaciones en este módulo primero.")
-                else:
-                    df_pal = st.session_state.df_paletizacion.copy()
-                    df_pal = normalizar_columnas(df_pal)
-                    import re as re_sug
-                    resultados_envases = []
-                    for _, row in df_pal.iterrows():
-                        envase_nombre = str(row.iloc[0])
-                        dim_int_col = None
-                        for col in df_pal.columns:
-                            if 'inter' in col.lower():
-                                dim_int_col = col
-                                break
-                        if dim_int_col is None:
-                            continue
-                        dim_str = str(row.get(dim_int_col, ''))
-                        nums = re_sug.findall(r'\d+', dim_str)
-                        if len(nums) < 3:
-                            continue
-                        el, ea, eh = int(nums[0]), int(nums[1]), int(nums[2])
-                        HOLGURA_GAS = 5   # mm extra por capa por efecto del gas
-                        MARGEN_CAJA = 4   # mm libres en la parte superior de la caja
-                        h_util = eh - MARGEN_CAJA
-                        bh_r   = b_h + HOLGURA_GAS
-                        # Probar ambas orientaciones
-                        uds_n = (el // b_l) * (ea // b_a) * (h_util // bh_r)
-                        uds_g = (el // b_a) * (ea // b_l) * (h_util // bh_r)
-                        if uds_g > uds_n:
-                            fi_l, fi_a, fi_h = el // b_a, ea // b_l, h_util // bh_r
-                            uds = uds_g
-                        else:
-                            fi_l, fi_a, fi_h = el // b_l, ea // b_a, h_util // bh_r
-                            uds = uds_n
-                        if uds > 0:
-                            resultados_envases.append({
-                                'Envase': envase_nombre,
-                                'Dim interior (mm)': f"{el}x{ea}x{eh}",
-                                'Filas L': fi_l,
-                                'Filas A': fi_a,
-                                'Capas': fi_h,
-                                'Uds/caja': uds,
-                                'Aprovechamiento %': round(uds * b_l * b_a * b_h / (el * ea * eh) * 100, 1)
-                            })
-                    if resultados_envases:
-                        df_res = pd.DataFrame(resultados_envases).sort_values('Uds/caja', ascending=False)
-                        st.subheader(f"Envases compatibles con bandeja {ref_bandeja} ({b_l}x{b_a}x{b_h}mm)")
-                        st.dataframe(df_res.reset_index(drop=True), use_container_width=True)
-                        mejor = df_res.iloc[0]
-                        tabla_str = df_res.to_string(index=False)
-                        dim_band = f"{b_l}x{b_a}x{b_h}mm"
-                        prompt_sug = f"Analiza estos envases para la bandeja {ref_bandeja} ({dim_band}) y da una recomendacion al comercial:\n\n{tabla_str}\n\nEl envase con mas unidades por caja es {mejor['Envase']} con {mejor['Uds/caja']} unidades. Explica brevemente las ventajas e inconvenientes de los 3 mejores y cual recomendarias y por que, en lenguaje sencillo para un comercial."
-                        try:
-                            from groq import Groq as GroqSug
-                            import os as _os
-                            from dotenv import load_dotenv as _ldenv
-                            _ldenv()
-                            _gkey = _os.getenv('GROQ_API_KEY', '') or GROQ_API_KEY
-                            groq_sug = GroqSug(api_key=_gkey)
-                            resp_sug = groq_sug.chat.completions.create(
-                                model="llama-3.1-8b-instant",
-                                messages=[
-                                    {"role": "system", "content": "Eres un experto en logistica y packaging de Aldelis. Responde en espanol, de forma clara y practica para un comercial."},
-                                    {"role": "user", "content": prompt_sug}
-                                ],
-                                max_tokens=800,
-                                temperature=0.3
-                            )
-                            st.info("🤖 " + resp_sug.choices[0].message.content)
-                        except Exception as e:
-                            st.warning(f"No se pudo obtener sugerencia IA: {e}")
-                    else:
-                        st.warning("No se encontraron envases compatibles con esta bandeja.")
-
-            elif not _b_l:
-                st.info("Introduce una referencia de bandeja o producto para calcular.")
+# ══════════════════════════════════════════════
+# MÓDULO: CALCULADORA PALETIZADO (acceso comercial)
+# ══════════════════════════════════════════════
+elif menu == "📐 Calculadora Paletizado":
+    st.header("📐 Calculadora de Paletización")
+    st.caption("Calcula unidades por caja y cajas por palet")
+    mostrar_calculadora_paletizado()
