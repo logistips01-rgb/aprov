@@ -1115,9 +1115,11 @@ if menu == "📂 Cargar Archivos":
         # Truncar fecha a día (ignorar hora) antes de agrupar
         c['Fecha'] = c['Fecha'].dt.normalize()
 
-        # Consumo por referencia y día (en unidades), solo días con movimiento
+        # Consumo por referencia y día (en unidades), solo días con movimiento, últimos 30 días
         c_dia = c.groupby(['Referencia', 'Fecha'])['Cantidad'].sum().reset_index()
         c_dia = c_dia[c_dia['Cantidad'] > 0]
+        _fecha_corte = pd.Timestamp.today().normalize() - pd.Timedelta(days=30)
+        c_dia = c_dia[c_dia['Fecha'] >= _fecha_corte]
 
         # Excluir días que caen dentro del periodo de oferta (consumo atípico)
         if st.session_state.df_final is not None and 'Oferta_inicio' in st.session_state.df_final.columns:
