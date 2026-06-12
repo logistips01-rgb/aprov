@@ -347,20 +347,69 @@ def check_password():
         st.session_state.rol_usuario = None
 
     if not st.session_state.autenticado:
-        col1, col2, col3 = st.columns([1,1,1])
-        with col2:
-            st.markdown("""
-<div style="text-align:center;margin-bottom:24px;">
-  <div style="font-size:28px;font-weight:700;color:#2C3E50;">Aprovisionamiento Aldelis</div>
-  <div style="font-size:13px;color:#7F8C8D;margin-top:4px;">Sistema de gestion de aprovisionamiento</div>
-</div>
-""", unsafe_allow_html=True)
-            pwd = st.text_input("Contrasena:", type="password", placeholder="Introduce tu contrasena")
-            if st.button("Entrar", use_container_width=True):
+        st.markdown("""
+        <style>
+        [data-testid="stAppViewContainer"] > .main { background-color: #f0f2f5; }
+        [data-testid="stHeader"] { background: transparent !important; box-shadow: none !important; }
+        section[data-testid="stSidebar"] { display: none !important; }
+        .block-container {
+            background: white;
+            border-radius: 20px !important;
+            box-shadow: 0 4px 28px rgba(0,0,0,0.10) !important;
+            padding: 48px 40px 40px !important;
+            max-width: 420px !important;
+            margin-top: 8vh !important;
+        }
+        [data-testid="stImage"] img {
+            mix-blend-mode: multiply;
+            display: block;
+            margin: 0 auto 4px;
+        }
+        [data-testid="stFormSubmitButton"] > button {
+            background-color: #C8102E !important;
+            color: white !important;
+            border: none !important;
+            border-radius: 8px !important;
+            font-weight: 600 !important;
+            font-size: 15px !important;
+        }
+        [data-testid="stFormSubmitButton"] > button:hover {
+            background-color: #a00d24 !important;
+            color: white !important;
+        }
+        [data-testid="stTextInput"] input:focus {
+            border-color: #C8102E !important;
+            box-shadow: 0 0 0 2px rgba(200,16,46,0.15) !important;
+        }
+        </style>
+        """, unsafe_allow_html=True)
+
+        # Quitar popup "usa una contraseña segura" del navegador
+        st.components.v1.html("""
+        <script>
+        function fixAutocomplete() {
+            var inputs = window.parent.document.querySelectorAll('input[type="password"]');
+            inputs.forEach(function(el) { el.setAttribute('autocomplete', 'new-password'); });
+        }
+        setTimeout(fixAutocomplete, 400);
+        setTimeout(fixAutocomplete, 1200);
+        </script>
+        """, height=0)
+
+        if os.path.exists("assets/logo_aldelis.png"):
+            st.image("assets/logo_aldelis.png", width=200)
+        else:
+            st.markdown('<div style="text-align:center;font-size:34px;font-weight:800;color:#C8102E;margin-bottom:4px;font-family:Georgia,serif;">Aldelis</div>', unsafe_allow_html=True)
+
+        st.markdown('<p style="text-align:center;color:#95a5a6;font-size:13px;margin-top:0;margin-bottom:8px;">Sistema de gestión de aprovisionamiento</p>', unsafe_allow_html=True)
+
+        with st.form("login_form"):
+            pwd = st.text_input("pwd", type="password", placeholder="Contraseña", label_visibility="collapsed")
+            submitted = st.form_submit_button("Entrar", use_container_width=True)
+            if submitted:
                 pwd_admin   = get_password("APP_PASSWORD", "aldelis2025")
                 pwd_id      = get_password("ID_PASSWORD", "aldelis_id")
                 pwd_almacen = get_password("ALMACEN_PASSWORD", "aldelis_almacen")
-
                 if pwd == pwd_admin:
                     st.session_state.autenticado = True
                     st.session_state.rol_usuario = "admin"
@@ -374,7 +423,7 @@ def check_password():
                     st.session_state.rol_usuario = "almacen"
                     st.rerun()
                 else:
-                    st.error("Contrasena incorrecta.")
+                    st.error("Contraseña incorrecta.")
         st.stop()
 
 check_password()
