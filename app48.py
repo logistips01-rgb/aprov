@@ -1120,6 +1120,7 @@ if menu == "📂 Cargar Archivos":
         c_dia = c_dia[c_dia['Cantidad'] > 0]
         _fecha_corte = pd.Timestamp.today().normalize() - pd.Timedelta(days=30)
         c_dia = c_dia[c_dia['Fecha'] >= _fecha_corte]
+        c_dia = c_dia[c_dia['Fecha'].dt.dayofweek < 5]
 
         # Excluir días que caen dentro del periodo de oferta (consumo atípico)
         if st.session_state.df_final is not None and 'Oferta_inicio' in st.session_state.df_final.columns:
