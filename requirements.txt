@@ -4,6 +4,5 @@ openpyxl
 firebase-admin
 python-dotenv
 groq
-chromadb==0.5.23
 plotly
 anthropic
