@@ -1924,18 +1924,52 @@ elif menu == "🎯 SS Óptimo":
             elif filtro_ss == "En riesgo (SS insuficiente)":
                 df_vis = df_vis[df_vis['Diferencia'] < 0]
 
-            def color_ss(row):
-                if row['Diferencia'] > 2:
-                    return ['background-color:#FDEDEC'] * len(row)
-                elif row['Diferencia'] < 0:
-                    return ['background-color:#FEF9E7'] * len(row)
-                return [''] * len(row)
-
-            st.dataframe(
-                df_vis.style.apply(color_ss, axis=1),
-                use_container_width=True,
-                hide_index=True
-            )
+            cols_ss = ['Referencia', 'Descripcion', 'CDM (pal)', 'Lead time', 'Max día válido', 'SS Actual (pal)', 'SS Sugerido (pal)', 'Diferencia']
+            col_labels_ss = {
+                'Referencia': 'Ref.', 'Descripcion': 'Descripción', 'CDM (pal)': 'CDM (pal)',
+                'Lead time': 'Lead', 'Max día válido': 'Máx. día', 'SS Actual (pal)': 'SS Actual',
+                'SS Sugerido (pal)': 'SS Sugerido', 'Diferencia': 'Diferencia',
+            }
+            rows_ss = ""
+            for _, row in df_vis.iterrows():
+                dif = row.get('Diferencia', 0)
+                if dif > 2:
+                    row_bg = "background:#FEF9F9;"
+                    badge_s = 'background:#FDEDEC;color:#C0392B;'
+                    dot_c = '#C8102E'
+                    estado_txt = "Sobredimensionado"
+                elif dif < 0:
+                    row_bg = "background:#FFFDE7;"
+                    badge_s = 'background:#FEF9E7;color:#D68910;'
+                    dot_c = '#F39C12'
+                    estado_txt = "En riesgo"
+                else:
+                    row_bg = "background:#F0FBF4;"
+                    badge_s = 'background:#EAFAF1;color:#1E8449;'
+                    dot_c = '#27AE60'
+                    estado_txt = "Óptimo"
+                dot = f'<span style="width:6px;height:6px;border-radius:50%;background:{dot_c};display:inline-block;margin-right:4px;"></span>'
+                badge_html = f'<span style="display:inline-flex;align-items:center;{badge_s}padding:3px 8px;border-radius:20px;font-size:11px;font-weight:500;">{dot}{estado_txt}</span>'
+                cells_ss = ""
+                for c in cols_ss:
+                    val = row.get(c, "")
+                    if c == 'Referencia':
+                        cells_ss += f'<td style="padding:8px 12px;font-weight:600;color:#2C3E50;">{val}</td>'
+                    elif c == 'Descripcion':
+                        cells_ss += f'<td style="padding:8px 12px;color:#666;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="{val}">{val}</td>'
+                    elif c == 'Diferencia':
+                        prefix = "+" if dif > 0 else ""
+                        color = "#C8102E" if dif > 2 else ("#D68910" if dif < 0 else "#27AE60")
+                        cells_ss += f'<td style="padding:8px 12px;font-weight:700;color:{color};">{prefix}{int(dif)}</td>'
+                        cells_ss += f'<td style="padding:8px 12px;">{badge_html}</td>'
+                    else:
+                        cells_ss += f'<td style="padding:8px 12px;color:#555;">{val}</td>'
+                rows_ss += f'<tr style="border-bottom:1px solid #F2F3F4;{row_bg}">{cells_ss}</tr>'
+            hdrs_ss = "".join([
+                f'<th style="padding:7px 12px;text-align:left;font-size:10px;font-weight:700;color:#5D6D7E;text-transform:uppercase;letter-spacing:0.05em;background:#F4F6F7;border-bottom:2px solid #D5D8DC;">{col_labels_ss.get(c,c)}</th>'
+                for c in cols_ss + ['Estado']
+            ])
+            st.markdown(f'<div style="background:white;border-radius:10px;border:1px solid #D5D8DC;overflow:hidden;margin-top:8px;"><div style="overflow-x:auto;max-height:560px;overflow-y:auto;"><table style="width:100%;border-collapse:collapse;font-size:12px;"><thead style="position:sticky;top:0;z-index:1;"><tr>{hdrs_ss}</tr></thead><tbody>{rows_ss}</tbody></table></div></div>', unsafe_allow_html=True)
 
             st.download_button(
                 "📥 Exportar a Excel",
@@ -4619,12 +4653,17 @@ elif menu == "🧠 Logística AI":
     # ── Inicializar ChromaDB ──────────────────
     @st.cache_resource
     def get_chroma():
-        import chromadb
-        client = chromadb.PersistentClient(path="./memoria_logistica")
-        col    = client.get_or_create_collection("logistica")
-        return col
+        try:
+            import chromadb
+            client = chromadb.PersistentClient(path="./memoria_logistica")
+            return client.get_or_create_collection("logistica")
+        except Exception as e:
+            return None
 
     coleccion_ai = get_chroma()
+    if coleccion_ai is None:
+        st.error("⚠️ No se pudo inicializar la memoria semántica (ChromaDB). La función de indexado no estará disponible, pero puedes usar el chat igualmente.")
+
 
     def excel_a_chunks(df, nombre):
         chunks = []
