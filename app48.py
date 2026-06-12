@@ -4650,45 +4650,6 @@ elif menu == "🧠 Logística AI":
     st.header("🧠 Logística AI")
     st.caption("Agente inteligente con memoria semántica · Claude Sonnet / Llama 3.3 70B")
 
-    # ── Inicializar ChromaDB ──────────────────
-    @st.cache_resource
-    def get_chroma():
-        try:
-            import chromadb
-            client = chromadb.PersistentClient(path="./memoria_logistica")
-            return client.get_or_create_collection("logistica")
-        except Exception as e:
-            return None
-
-    coleccion_ai = get_chroma()
-    if coleccion_ai is None:
-        st.error("⚠️ No se pudo inicializar la memoria semántica (ChromaDB). La función de indexado no estará disponible, pero puedes usar el chat igualmente.")
-
-
-    def excel_a_chunks(df, nombre):
-        chunks = []
-        cols   = ", ".join(df.columns.tolist())
-        chunks.append(f"Archivo: {nombre} | Columnas: {cols} | Total filas: {len(df)}")
-        for i, row in df.head(500).iterrows():
-            fila = f"[{nombre}] fila {i+1}: " + " | ".join(
-                f"{col}={val}" for col, val in row.items() if pd.notna(val)
-            )
-            chunks.append(fila)
-        return chunks
-
-    def indexar_df(df, nombre):
-        import time
-        try:
-            existentes = coleccion_ai.get(where={"archivo": nombre})["ids"]
-            if existentes:
-                coleccion_ai.delete(ids=existentes)
-        except:
-            pass
-        chunks    = excel_a_chunks(df, nombre)
-        ids       = [f"{nombre}_{i}_{int(time.time())}" for i in range(len(chunks))]
-        metadatas = [{"archivo": nombre} for _ in chunks]
-        coleccion_ai.add(documents=chunks, ids=ids, metadatas=metadatas)
-        return len(chunks)
 
     def construir_contexto_firebase():
         """Vuelca todos los dataframes de session_state en texto para Claude."""
@@ -4725,16 +4686,6 @@ elif menu == "🧠 Logística AI":
 
         return "\n\n".join(bloques) if bloques else "No hay datos cargados en Firebase."
 
-    def buscar_contexto_ai(pregunta, n=20):
-        try:
-            total = coleccion_ai.count()
-            if total == 0:
-                return ""
-            resultados = coleccion_ai.query(query_texts=[pregunta], n_results=min(n, total))
-            return "\n".join(resultados["documents"][0])
-        except:
-            return ""
-
     def parsear_medidas(texto):
         """Extrae LxAxH de strings como '600X400X162' o '18x25 36'"""
         import re
@@ -4743,80 +4694,8 @@ elif menu == "🧠 Logística AI":
             return int(partes[0]), int(partes[1]), int(partes[2])
         return None, None, None
 
-    # ── Panel lateral: archivos indexados ────
-    col_main, col_side = st.columns([3, 1])
-
-    with col_side:
-        st.subheader("📁 Archivos indexados")
-
-        # Indexar datos de la app automáticamente
-        if st.button("🔄 Indexar datos de la app", use_container_width=True):
-            with st.spinner("Indexando..."):
-                n_total = 0
-                if st.session_state.df_final is not None:
-                    n_total += indexar_df(st.session_state.df_final, "maestro_bandejas")
-                if st.session_state.df_consumos is not None:
-                    n_total += indexar_df(st.session_state.df_consumos.head(1000), "consumos_bandejas")
-                if st.session_state.df_materiales is not None:
-                    n_total += indexar_df(st.session_state.df_materiales, "materiales_asociados")
-                if st.session_state.df_etiquetas_final is not None:
-                    n_total += indexar_df(st.session_state.df_etiquetas_final, "maestro_etiquetas")
-                if st.session_state.df_ventas is not None:
-                    n_total += indexar_df(st.session_state.df_ventas, "ventas_mensuales")
-                if st.session_state.df_stock_pt is not None:
-                    n_total += indexar_df(st.session_state.df_stock_pt, "stock_producto_terminado")
-                if st.session_state.df_pedidos is not None and not st.session_state.df_pedidos.empty:
-                    n_total += indexar_df(st.session_state.df_pedidos, "pedidos")
-                st.session_state.logistica_archivos['app_datos'] = f"{n_total} chunks"
-                st.success(f"✅ {n_total} chunks indexados")
-                st.rerun()
-
-        # Subir Excel adicional
-        st.divider()
-        f_extra = st.file_uploader("➕ Subir Excel adicional", type=["xlsx","csv"], key="fextra")
-        if f_extra and st.button("📥 Indexar archivo", use_container_width=True):
-            with st.spinner("Indexando..."):
-                if f_extra.name.endswith('.csv'):
-                    df_extra = pd.read_csv(f_extra)
-                else:
-                    df_extra = pd.read_excel(f_extra)
-                df_extra = normalizar_columnas(df_extra)
-                nombre_extra = f_extra.name.rsplit('.', 1)[0]
-                n = indexar_df(df_extra, nombre_extra)
-                st.session_state.logistica_archivos[nombre_extra] = f"{n} chunks | {len(df_extra)} filas"
-                # Preguntar si es el archivo de paletización
-                if st.checkbox(f"¿Es este el archivo de envases/paletización?", key=f"is_pal_{nombre_extra}"):
-                    st.session_state.df_paletizacion = df_extra
-                    df_a_firebase(df_extra, 'logistica', 'df_paletizacion')
-                    st.info("📦 Guardado como archivo de paletización en Firebase")
-                st.success(f"✅ {nombre_extra} indexado")
-                st.rerun()
-
-        # Mostrar archivos disponibles
-        st.divider()
-        try:
-            total_docs = coleccion_ai.count()
-            st.metric("Total chunks", total_docs)
-        except:
-            st.metric("Total chunks", 0)
-
-        for nombre, info in st.session_state.logistica_archivos.items():
-            st.caption(f"📄 {nombre}: {info}")
-
-        if st.button("🗑️ Limpiar memoria", use_container_width=True):
-            try:
-                ids = coleccion_ai.get()["ids"]
-                if ids:
-                    coleccion_ai.delete(ids=ids)
-            except:
-                pass
-            st.session_state.logistica_historial = []
-            st.session_state.logistica_archivos  = {}
-            st.success("Memoria limpiada")
-            st.rerun()
-
     # ── Chat principal ────────────────────────
-    with col_main:
+    if True:
         # Selector de modelo
         MODELOS_AI = {
             "🟣 Claude Sonnet (Anthropic)": "claude",
@@ -4857,11 +4736,7 @@ elif menu == "🧠 Logística AI":
             with st.chat_message("assistant"):
                 with st.spinner("Analizando..."):
                     try:
-                        # Claude y Gemini usan contexto directo de Firebase; Groq usa ChromaDB
-                        if motor_ai in ("claude", "gemini"):
-                            contexto = ""
-                        else:
-                            contexto = buscar_contexto_ai(pregunta_actual)
+                        contexto = ""
                         archivos_lista = ", ".join(st.session_state.logistica_archivos.keys()) or "ninguno aún"
 
                         # Enriquecer contexto con búsqueda exacta de referencias
@@ -5204,9 +5079,7 @@ INSTRUCCIONES:
                                 pass
                             break
                 if e_l is None:
-                    # Fallback a ChromaDB
-                    ctx_env = buscar_contexto_ai(ref_envase, n=10)
-                    st.warning(f"No se encontró '{ref_envase}' en el archivo de paletización. Buscando en ChromaDB...")
+                    st.warning(f"No se encontró '{ref_envase}' en el archivo de paletización.")
 
             if b_l and b_a and b_h:
                 st.success(f"🏷️ Bandeja **{ref_bandeja}**: {b_l}×{b_a}×{b_h} mm")
