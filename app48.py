@@ -400,10 +400,13 @@ def check_password():
             max-width: 420px !important;
             margin-top: 8vh !important;
         }
+        [data-testid="stImage"] {
+            display: flex;
+            justify-content: center;
+        }
         [data-testid="stImage"] img {
             mix-blend-mode: multiply;
-            display: block;
-            margin: 0 auto 4px;
+            margin-bottom: 4px;
         }
         [data-testid="stFormSubmitButton"] > button {
             background-color: #C8102E !important;
