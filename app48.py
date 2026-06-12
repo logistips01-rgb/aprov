@@ -345,6 +345,46 @@ def check_password():
     if 'autenticado' not in st.session_state:
         st.session_state.autenticado = False
         st.session_state.rol_usuario = None
+        st.session_state._splash = False
+
+    # ── Splash screen ──────────────────────────────────────────────────────
+    if st.session_state.get('_splash'):
+        import base64, time as _time
+        _logo_b64 = ""
+        if os.path.exists("assets/logo_aldelis.png"):
+            with open("assets/logo_aldelis.png", "rb") as _f:
+                _logo_b64 = base64.b64encode(_f.read()).decode()
+        st.markdown(f"""
+        <style>
+        [data-testid="stAppViewContainer"] {{ background: white !important; }}
+        [data-testid="stHeader"] {{ display: none !important; }}
+        section[data-testid="stSidebar"] {{ display: none !important; }}
+        .block-container {{ max-width:100% !important; padding:0 !important; margin:0 !important; }}
+        .splash-wrap {{
+            position: fixed; top:0; left:0; right:0; bottom:0;
+            display: flex; align-items: center; justify-content: center;
+            background: white; z-index: 9999;
+        }}
+        @keyframes logoZoom {{
+            0%   {{ transform: scale(0.04); opacity: 0; }}
+            12%  {{ opacity: 1; }}
+            100% {{ transform: scale(1); opacity: 1; }}
+        }}
+        .splash-logo {{
+            width: 320px;
+            mix-blend-mode: multiply;
+            animation: logoZoom 2.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }}
+        </style>
+        <div class="splash-wrap">
+            <img src="data:image/png;base64,{_logo_b64}" class="splash-logo" />
+        </div>
+        """, unsafe_allow_html=True)
+        _time.sleep(2.4)
+        st.session_state._splash = False
+        st.rerun()
+        return
+    # ───────────────────────────────────────────────────────────────────────
 
     if not st.session_state.autenticado:
         st.markdown("""
@@ -413,14 +453,17 @@ def check_password():
                 if pwd == pwd_admin:
                     st.session_state.autenticado = True
                     st.session_state.rol_usuario = "admin"
+                    st.session_state._splash = True
                     st.rerun()
                 elif pwd == pwd_id:
                     st.session_state.autenticado = True
                     st.session_state.rol_usuario = "id"
+                    st.session_state._splash = True
                     st.rerun()
                 elif pwd == pwd_almacen:
                     st.session_state.autenticado = True
                     st.session_state.rol_usuario = "almacen"
+                    st.session_state._splash = True
                     st.rerun()
                 else:
                     st.error("Contraseña incorrecta.")
