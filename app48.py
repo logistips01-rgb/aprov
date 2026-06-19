@@ -1561,8 +1561,8 @@ if menu == "📂 Cargar Archivos":
         cols_m = COL_MAESTRO + [c for c in COL_MAESTRO_OPT if c in m.columns]
         m = m[cols_m]
 
-        # --- Unión: solo referencias presentes en Maestro Y Stock ---
-        final = pd.merge(m, res_stock, on='Referencia', how='inner')
+        # --- Unión: todas las referencias del Maestro, stock 0 si no hay datos ---
+        final = pd.merge(m, res_stock, on='Referencia', how='left')
         final = pd.merge(final, cdm,      on='Referencia', how='left')
 
         # Rellenar numericos con 0 donde no haya consumos o datos
