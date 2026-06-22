@@ -1566,7 +1566,7 @@ if menu == "📂 Cargar Archivos":
         final = pd.merge(final, cdm,      on='Referencia', how='left')
 
         # Rellenar numericos con 0 donde no haya consumos o datos
-        for col in ['Cdm', 'Stock_interno', 'Stock_merca', 'Stock_txt', 'Lead_time', 'Stock_seguridad', 'Unidades_palet', 'Incremento']:
+        for col in ['Cdm', 'Stock_interno', 'Stock_merca', 'Stock_txt', 'Stock_avitrans', 'Lead_time', 'Stock_seguridad', 'Unidades_palet', 'Incremento']:
             if col in final.columns:
                 final[col] = pd.to_numeric(final[col], errors='coerce').fillna(0)
 
