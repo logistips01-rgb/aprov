@@ -613,6 +613,7 @@ if not st.session_state.firebase_cargado:
         ("df_stock_pt",        "producto_terminado", "df_stock_pt"),
         ("df_produccion_pt",   "producto_terminado", "df_produccion_pt"),
         ("df_plan_produccion", "producto_terminado", "df_plan_produccion"),
+        ("df_pedido_estandar", "bandejas",           "df_pedido_estandar"),
     ]
 
     _fb_errores = []
@@ -674,6 +675,8 @@ if 'df_produccion_pt' not in st.session_state:
     st.session_state.df_produccion_pt = None
 if 'df_plan_produccion' not in st.session_state:
     st.session_state.df_plan_produccion = None
+if 'df_pedido_estandar' not in st.session_state:
+    st.session_state.df_pedido_estandar = None
 if 'ref_detalle_bandeja' not in st.session_state:
     st.session_state.ref_detalle_bandeja = None
 if 'logistica_historial' not in st.session_state:
@@ -1066,7 +1069,7 @@ st.sidebar.markdown(f"""
 GRUPOS_ADMIN = {
     "Principal": ["📂 Cargar Archivos", "📊 Dashboard", "📈 Análisis", "🧠 Logística AI"],
     "Gestión": ["🔗 Materiales", "🏷️ Etiquetas", "🚢 Tránsito", "📦 Envases"],
-    "Producción": ["🔍 Previsión y Obsoletos"],
+    "Producción": ["🔍 Previsión y Obsoletos", "🔄 Pedido Proveedor"],
     "Análisis": ["🎯 SS Óptimo"],
 }
 GRUPOS_ID       = {"Etiquetas":    ["🏷️ Etiquetas"]}
@@ -1094,6 +1097,7 @@ LABELS_MENU = {
     "📦 Envases": "Envases",
     "🤖 Agente IA": "Agente IA",
     "📐 Calculadora Paletizado": "Calculadora Palet",
+    "🔄 Pedido Proveedor": "Pedido Proveedor",
 }
 
 # Rol badge en sidebar
@@ -1437,6 +1441,29 @@ if menu == "📂 Cargar Archivos":
             st.dataframe(st.session_state.df_paletizacion.iloc[:,[0]], use_container_width=True)
         else:
             st.warning("Sin archivo de paletización. Súbelo aquí para que persista.")
+
+    with st.expander("📋 Pedido Estándar (proveedor bandejas)"):
+        f_pe = st.file_uploader("Subir/actualizar pedido estándar (.xlsx)", type="xlsx", key="fpe_main")
+        if f_pe and st.button("💾 Guardar pedido estándar", key="btn_pe_main"):
+            try:
+                df_pe = pd.read_excel(f_pe, header=3)
+                df_pe.columns = [str(c).strip() for c in df_pe.columns]
+                df_pe = df_pe.rename(columns={'Ref.': 'Referencia', 'Box base': 'Box_base', 'Ud/palet': 'Ud_palet', 'Descripción': 'Descripcion'})
+                df_pe['Referencia'] = df_pe['Referencia'].astype(str).str.strip().str.upper()
+                df_pe = df_pe[df_pe['Referencia'].str.match(r'^C\d+$', na=False)]
+                df_pe['Box_base'] = pd.to_numeric(df_pe['Box_base'], errors='coerce').fillna(0)
+                df_pe = df_pe[['Referencia', 'Descripcion', 'Ud_palet', 'Box_base']].reset_index(drop=True)
+                st.session_state.df_pedido_estandar = df_pe
+                df_a_firebase(df_pe, 'bandejas', 'df_pedido_estandar')
+                st.success(f"✅ {len(df_pe)} referencias guardadas en Firebase.")
+                st.rerun()
+            except Exception as e:
+                st.error(f"Error al leer el archivo: {e}")
+        if st.session_state.df_pedido_estandar is not None:
+            st.info(f"✅ {len(st.session_state.df_pedido_estandar)} referencias cargadas.")
+            st.dataframe(st.session_state.df_pedido_estandar[['Referencia','Descripcion','Box_base']], use_container_width=True, height=200)
+        else:
+            st.warning("Sin pedido estándar. Súbelo aquí para que persista.")
 
     if st.button("🚀 Sincronizar"):
         if not (f_maestro and f_stock and f_consumos):
@@ -5288,3 +5315,199 @@ elif menu == "📐 Calculadora Paletizado":
     st.header("📐 Calculadora de Paletización")
     st.caption("Calcula unidades por caja y cajas por palet")
     mostrar_calculadora_paletizado()
+
+# ══════════════════════════════════════════════
+# MÓDULO: PEDIDO PROVEEDOR
+# ══════════════════════════════════════════════
+elif menu == "🔄 Pedido Proveedor":
+    st.header("🔄 Pedido Proveedor")
+    st.caption("Pedido calculado vs. pedido estándar (mediana histórica). Ajuste = calculado − base.")
+
+    if st.session_state.df_pedido_estandar is None:
+        st.warning("⚠️ Sube el pedido estándar en 📂 Cargar Archivos → Pedido Estándar primero.")
+        st.stop()
+
+    if st.session_state.df_final is None:
+        st.warning("⚠️ Primero carga y sincroniza los archivos de bandejas.")
+        st.stop()
+
+    # ── Preparar datos base con tránsito ──
+    df_pp = st.session_state.df_final.copy()
+    for _c in ['Stock_interno', 'Stock_merca', 'Stock_txt', 'Stock_avitrans',
+               'Cdm', 'Lead_time', 'Stock_seguridad', 'Unidades_palet', 'Incremento']:
+        if _c not in df_pp.columns:
+            df_pp[_c] = 0
+        df_pp[_c] = pd.to_numeric(df_pp[_c], errors='coerce').fillna(0)
+    if 'Situacion' not in df_pp.columns:
+        df_pp['Situacion'] = 'ACTIVA'
+    df_pp['Situacion'] = df_pp['Situacion'].astype(str).str.strip().str.upper().replace('NAN', 'ACTIVA').fillna('ACTIVA')
+
+    for _src, _col in [(st.session_state.df_transito, 'En_transito'),
+                       (st.session_state.df_transito2, 'En_transito2')]:
+        if _src is not None and not _src.empty:
+            _agg = _src.groupby('Referencia')['Cantidad'].sum().reset_index().rename(columns={'Cantidad': _col})
+            df_pp = df_pp.merge(_agg, on='Referencia', how='left')
+        else:
+            df_pp[_col] = 0
+        df_pp[_col] = df_pp[_col].fillna(0)
+
+    # Var_CDM
+    df_pp['Var_CDM'] = 0.0
+    if st.session_state.df_consumos is not None:
+        try:
+            _cv = st.session_state.df_consumos.copy()
+            _cv['Fecha'] = pd.to_datetime(_cv['Fecha'], errors='coerce').dt.normalize()
+            _cv['Cantidad'] = pd.to_numeric(_cv['Cantidad'], errors='coerce').fillna(0).abs()
+            _ult = _cv.groupby('Referencia')['Fecha'].max().reset_index().rename(columns={'Fecha': 'UltFecha'})
+            _cv = _cv.merge(_ult, on='Referencia')
+            _cu = (_cv[_cv['Fecha'] == _cv['UltFecha']].groupby('Referencia')['Cantidad'].sum()
+                   .reset_index().rename(columns={'Cantidad': 'Cons_ult'}))
+            df_pp = df_pp.merge(_cu, on='Referencia', how='left')
+            _up = df_pp['Unidades_palet'].clip(lower=1)
+            df_pp['Var_CDM'] = ((df_pp['Cons_ult'].fillna(0) / _up - df_pp['Cdm'].clip(lower=0.01)) /
+                                df_pp['Cdm'].clip(lower=0.01) * 100).round(0).fillna(0).astype(int)
+            df_pp = df_pp.drop(columns=['Cons_ult'])
+        except Exception:
+            df_pp['Var_CDM'] = 0
+
+    # ── Cálculo pedido tradicional ──
+    def _ped_trad_pp(row):
+        u_p  = max(row['Unidades_palet'], 1)
+        lead = row['Lead_time'] or 1
+        seg  = row['Stock_seguridad'] or 0
+        cdm  = row['Cdm'] or 0
+        var  = row.get('Var_CDM', 0) or 0
+        inc  = row.get('Incremento', 0) or 0
+        sit  = str(row.get('Situacion', 'ACTIVA')).strip().upper()
+        pal_int   = math.floor(row['Stock_interno']  / u_p)
+        pal_merca = math.floor(row['Stock_merca']    / u_p)
+        pal_tr1   = math.floor(row['En_transito']    / u_p)
+        pal_tr2   = math.floor(row['En_transito2']   / u_p)
+        cdm_ef = cdm if abs(var) < 15 else max(cdm * (1 + var / 100), 0.01)
+        stk_op = pal_merca if sit == 'MERCA' else pal_int
+        disp   = stk_op + pal_tr1 + pal_tr2
+        mult   = 1.5 if cdm < 5 else 1.0
+        return max(math.ceil(seg + mult * cdm_ef * lead - disp + inc),
+                   math.ceil(seg + mult * cdm  * lead  - disp + inc), 0)
+
+    df_pp['Pedido_trad'] = df_pp.apply(_ped_trad_pp, axis=1)
+
+    # ── Cálculo pedido previsión (si hay planificación) ──
+    has_prev_pp = st.session_state.df_planificacion is not None
+    if has_prev_pp:
+        _plan = st.session_state.df_planificacion.copy()
+        _nec  = _plan.groupby('Codigo')['Apro'].sum().reset_index()
+        _nec.columns = ['Referencia', 'Necesidad_ud']
+        df_pp = df_pp.merge(_nec, on='Referencia', how='left')
+        df_pp['Necesidad_ud'] = df_pp['Necesidad_ud'].fillna(0)
+
+        def _ped_prev_pp(row):
+            u_p  = max(row['Unidades_palet'], 1)
+            lead = row['Lead_time'] or 1
+            seg  = row['Stock_seguridad'] or 0
+            cdm  = row['Cdm'] or 0
+            var  = row.get('Var_CDM', 0) or 0
+            inc  = row.get('Incremento', 0) or 0
+            sit  = str(row.get('Situacion', 'ACTIVA')).strip().upper()
+            nec  = row['Necesidad_ud'] or 0
+            stk_ud  = row['Stock_merca'] if sit == 'MERCA' else row['Stock_interno']
+            pal_act = math.floor(stk_ud / u_p)
+            pal_nec = math.ceil(nec / u_p)
+            pal_teo = math.floor((stk_ud - nec) / u_p)
+            pal_tr1 = math.floor(row['En_transito']  / u_p)
+            pal_tr2 = math.floor(row['En_transito2'] / u_p)
+            cdm_ef  = cdm if abs(var) < 15 else max(cdm * (1 + var / 100), 0.01)
+            mult    = 1.5 if cdm < 5 else 1.0
+            stk_op  = pal_act if pal_nec == 0 else pal_teo
+            disp    = (pal_teo if pal_teo < 0 else stk_op) + pal_tr1 + pal_tr2
+            return max(math.ceil(seg + mult * cdm_ef * lead - disp + inc),
+                       math.ceil(seg + mult * cdm  * lead  - disp + inc), 0)
+
+        df_pp['Pedido_prev'] = df_pp.apply(_ped_prev_pp, axis=1)
+    else:
+        df_pp['Pedido_prev'] = None
+
+    # ── Merge con pedido estándar ──
+    df_pe_pp = st.session_state.df_pedido_estandar.copy()
+    df_pe_pp['Referencia'] = df_pe_pp['Referencia'].astype(str).str.strip().str.upper()
+
+    _mc = ['Referencia', 'Cdm', 'Stock_seguridad', 'Lead_time', 'Stock_interno', 'Stock_merca',
+           'Unidades_palet', 'En_transito', 'En_transito2', 'Situacion', 'Pedido_trad', 'Pedido_prev']
+    res_pp = df_pe_pp.merge(df_pp[[c for c in _mc if c in df_pp.columns]], on='Referencia', how='left')
+
+    res_pp['Pedido_trad'] = res_pp['Pedido_trad'].fillna(0).astype(int)
+    res_pp['Box_base']    = res_pp['Box_base'].fillna(0).astype(int)
+    res_pp['Ajuste_trad'] = res_pp['Pedido_trad'] - res_pp['Box_base']
+    if has_prev_pp:
+        res_pp['Pedido_prev'] = res_pp['Pedido_prev'].fillna(0).astype(int)
+        res_pp['Ajuste_prev'] = res_pp['Pedido_prev'] - res_pp['Box_base']
+
+    # ── KPIs ──
+    _kc1, _kc2, _kc3, _kc4 = st.columns(4)
+    _kc1.metric("Referencias", len(res_pp))
+    _kc2.metric("Pedido trad. (pal.)", int(res_pp['Pedido_trad'].sum()))
+    _kc3.metric("Base pedido (pal.)", int(res_pp['Box_base'].sum()))
+    _net = int(res_pp['Ajuste_trad'].sum())
+    _kc4.metric("Ajuste neto (pal.)", f"{'+' if _net > 0 else ''}{_net}")
+
+    # ── Tabla HTML ──
+    def _badge_pp(v):
+        if v is None or (isinstance(v, float) and math.isnan(v)):
+            return "—"
+        v = int(v)
+        if v > 0:
+            return f'<span style="background:#FDEDEC;color:#C0392B;padding:2px 7px;border-radius:4px;font-weight:600;">+{v}</span>'
+        elif v < 0:
+            return f'<span style="background:#EAFAF1;color:#1E8449;padding:2px 7px;border-radius:4px;font-weight:600;">{v}</span>'
+        return f'<span style="background:#F2F3F4;color:#626567;padding:2px 7px;border-radius:4px;">0</span>'
+
+    _hdrs = ["Ref.", "Descripción", "Stk (pal)", "SS", "CDM", "Lead", "Ped. trad.", "Base", "Ajuste trad."]
+    if has_prev_pp:
+        _hdrs += ["Ped. prev.", "Ajuste prev."]
+
+    _rows_html = []
+    for _, _r in res_pp.iterrows():
+        _sit   = str(_r.get('Situacion', 'ACTIVA')).strip().upper()
+        _stk_u = _r.get('Stock_merca', 0) if _sit == 'MERCA' else _r.get('Stock_interno', 0)
+        _up    = max(_r.get('Unidades_palet', 1) or 1, 1)
+        _stk_p = math.floor((_stk_u or 0) / _up)
+        _cdm_p = math.ceil(_r.get('Cdm', 0) or 0)
+        _ss_p  = round(_r.get('Stock_seguridad', 0) or 0)
+        _lead  = int(_r.get('Lead_time', 0) or 0)
+        _desc  = str(_r.get('Descripcion', '') or '')[:45]
+        _tv    = int(_r['Pedido_trad'])
+        _bv    = int(_r['Box_base'])
+        _at    = int(_r['Ajuste_trad'])
+
+        _cols = [
+            f"<b>{_r['Referencia']}</b>",
+            f'<span style="font-size:11px;">{_desc}</span>',
+            str(_stk_p), str(_ss_p), str(_cdm_p), str(_lead),
+            f"<b>{_tv}</b>", str(_bv), _badge_pp(_at)
+        ]
+        if has_prev_pp:
+            _pv = int(_r.get('Pedido_prev', 0) or 0)
+            _ap = int(_r.get('Ajuste_prev', 0) or 0)
+            _cols += [str(_pv), _badge_pp(_ap)]
+
+        _rows_html.append("<tr><td>" + "</td><td>".join(_cols) + "</td></tr>")
+
+    _hdr_html  = "<th>" + "</th><th>".join(_hdrs) + "</th>"
+    _body_html = "\n".join(_rows_html)
+    _tbl = f"""<div style="overflow-x:auto;margin-top:12px;">
+<table style="width:100%;border-collapse:collapse;font-size:13px;">
+<thead><tr style="background:#1E2A3A;color:white;text-align:center;">{_hdr_html}</tr></thead>
+<tbody style="text-align:center;">{_body_html}</tbody>
+</table></div>"""
+    st.markdown(_tbl, unsafe_allow_html=True)
+
+    # ── Exportar Excel ──
+    import io as _io_pp
+    _buf_pp = _io_pp.BytesIO()
+    _exp_pp = ['Referencia', 'Descripcion', 'Box_base', 'Pedido_trad', 'Ajuste_trad']
+    if has_prev_pp:
+        _exp_pp += ['Pedido_prev', 'Ajuste_prev']
+    res_pp[[c for c in _exp_pp if c in res_pp.columns]].to_excel(_buf_pp, index=False)
+    _buf_pp.seek(0)
+    st.download_button("📥 Exportar Excel", _buf_pp, "pedido_proveedor.xlsx",
+                       mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
