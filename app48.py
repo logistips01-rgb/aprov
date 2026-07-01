@@ -1634,6 +1634,10 @@ if menu == "📂 Cargar Archivos":
             (_today <= _ff2)
         ).fillna(False)
 
+        # --- Orden por número de referencia (independiente del orden del Excel de origen) ---
+        final['_sort_key'] = final['Referencia'].str.extract(r'(\d+)')[0].fillna('999999').astype(int)
+        final = final.sort_values(['_sort_key', 'Referencia']).drop(columns='_sort_key').reset_index(drop=True)
+
         st.session_state.df_final = final
         st.session_state.df_consumos = c
         guardar_snapshot(final, c)
