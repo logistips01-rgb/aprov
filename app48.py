@@ -641,6 +641,9 @@ if not st.session_state.firebase_cargado:
                 df_r["Fecha"] = pd.to_datetime(df_r["Fecha"], errors="coerce")
             elif key == "df_pedidos":
                 df_r["Fecha_entrega"] = pd.to_datetime(df_r["Fecha_entrega"], errors="coerce")
+            elif key == "df_final" and "Referencia" in df_r.columns:
+                df_r["_sort_key"] = df_r["Referencia"].astype(str).str.extract(r'(\d+)')[0].fillna('999999').astype(int)
+                df_r = df_r.sort_values(["_sort_key", "Referencia"]).drop(columns="_sort_key").reset_index(drop=True)
             st.session_state[key] = df_r
         elif err and err not in ("No existe",) and not err.startswith("[{"):
             _fb_errores.append(f"{doc}: {err}")
