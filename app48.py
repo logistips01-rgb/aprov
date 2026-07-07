@@ -493,7 +493,7 @@ COL_STOCK     = ['Referencia', 'Almacen', 'Cantidad']
 COL_CONSUMOS  = ['Referencia', 'Fecha', 'Cantidad']
 
 ALMACENES_INT      = {'AL6', 'AL6SGA', 'AL6 SGA'}
-ALMACENES_MERCA    = {'ARENTO', 'CAMARA BANDEJAS F19'}
+ALMACENES_MERCA    = {'ARENTO', 'ARENTO CAM1', 'ARENTO CAM2', 'CAMARA BANDEJAS F19'}
 ALMACENES_TXT      = {'TXT'}
 ALMACENES_AVITRANS = {'AVITRANS'}
 
@@ -2433,7 +2433,7 @@ elif menu == "📦 Envases":
     # ══════════════════════════════════════
     with tab_ext:
         st.markdown("**Stock en almacenes externos** (MERCAZARAGOZA, ARENTO, TXT, AVITRANS). CDM = ventas mes / 24 días. SS = CDM × Lead time.")
-        _ALM_ENV_EXT = {'ARENTO', 'TXT', 'AVITRANS'}
+        _ALM_ENV_EXT = {'ARENTO', 'ARENTO CAM1', 'ARENTO CAM2', 'TXT', 'AVITRANS'}
 
         if st.session_state.df_stock_erp is not None:
             s_ext = st.session_state.df_stock_erp.copy()
