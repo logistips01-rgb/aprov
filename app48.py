@@ -348,8 +348,13 @@ def check_password():
         st.session_state._splash = False
 
     # ── Splash screen ──────────────────────────────────────────────────────
+    # No bloquear el hilo del servidor con time.sleep(): en Streamlit eso puede
+    # dejar sin responder los health-checks del proceso y hacer que la
+    # plataforma (o el propio navegador) den la app por caída. En su lugar, la
+    # animación corre por CSS y un botón oculto se "pulsa" por JS al terminar,
+    # generando un rerun normal por WebSocket sin bloquear nada en el backend.
     if st.session_state.get('_splash'):
-        import base64, time as _time
+        import base64
         _logo_b64 = ""
         if os.path.exists("assets/logo_aldelis.png"):
             with open("assets/logo_aldelis.png", "rb") as _f:
@@ -375,14 +380,26 @@ def check_password():
             mix-blend-mode: multiply;
             animation: logoZoom 9s ease-in forwards;
         }}
+        div[data-testid="stButton"]:has(button[key="_splash_continuar"]) {{ display: none !important; }}
         </style>
         <div class="splash-wrap">
             <img src="data:image/png;base64,{_logo_b64}" class="splash-logo" />
         </div>
         """, unsafe_allow_html=True)
-        _time.sleep(9.2)
-        st.session_state._splash = False
-        st.rerun()
+        if st.button("continuar", key="_splash_continuar"):
+            st.session_state._splash = False
+            st.rerun()
+        st.markdown("""
+        <script>
+        setTimeout(function() {
+            const doc = window.parent.document;
+            const btns = doc.querySelectorAll('button');
+            for (const b of btns) {
+                if (b.innerText.trim() === 'continuar') { b.click(); break; }
+            }
+        }, 9200);
+        </script>
+        """, unsafe_allow_html=True)
         return
     # ───────────────────────────────────────────────────────────────────────
 
