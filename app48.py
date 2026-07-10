@@ -380,16 +380,18 @@ def check_password():
             mix-blend-mode: multiply;
             animation: logoZoom 9s ease-in forwards;
         }}
-        div[data-testid="stButton"]:has(button[key="_splash_continuar"]) {{ display: none !important; }}
         </style>
         <div class="splash-wrap">
             <img src="data:image/png;base64,{_logo_b64}" class="splash-logo" />
         </div>
         """, unsafe_allow_html=True)
+        # El overlay fixed (z-index 9999) ya tapa visualmente este botón.
         if st.button("continuar", key="_splash_continuar"):
             st.session_state._splash = False
             st.rerun()
-        st.markdown("""
+        # st.markdown no ejecuta <script> (innerHTML lo ignora por seguridad).
+        # st.components.v1.html sí lo ejecuta, por eso se usa aquí.
+        st.components.v1.html("""
         <script>
         setTimeout(function() {
             const doc = window.parent.document;
@@ -399,7 +401,7 @@ def check_password():
             }
         }, 9200);
         </script>
-        """, unsafe_allow_html=True)
+        """, height=0)
         return
     # ───────────────────────────────────────────────────────────────────────
 
