@@ -12,6 +12,7 @@ transportistas/clientes crece de forma atómica con ArrayUnion.
 """
 import os
 from datetime import datetime, date
+from io import BytesIO
 
 import pandas as pd
 import streamlit as st
@@ -179,6 +180,47 @@ def borrar_incidencia(doc_id: str):
 # UI — PÁGINA DE REGISTRO (Fase 1)
 # ─────────────────────────────────────────────
 
+def _inject_css():
+    """CSS propia del módulo, autocontenida (no depende de app48.py). Sólo
+    se inyecta mientras esta página está visible, así que no hay riesgo de
+    que afecte al resto de la aplicación."""
+    st.markdown(f"""
+    <style>
+    .inc-seccion {{
+      font-size: 12px !important;
+      font-weight: 700 !important;
+      color: {COLOR_CORPORATIVO} !important;
+      text-transform: uppercase !important;
+      letter-spacing: 0.06em !important;
+      border-left: 3px solid {COLOR_CORPORATIVO};
+      padding-left: 8px;
+      margin-bottom: 10px;
+    }}
+    /* Los number_input no estaban cubiertos por el CSS global de app48.py:
+       sus labels quedaban en negro/tamaño normal, distintos del resto. */
+    .stNumberInput label {{
+      font-size: 10px !important;
+      font-weight: 600 !important;
+      color: #7F8C8D !important;
+      text-transform: uppercase !important;
+      letter-spacing: 0.05em !important;
+    }}
+    /* Refuerzo de contraste en selects y su desplegable: evita texto poco
+       visible si el navegador fuerza modo oscuro. */
+    div[data-baseweb="select"] div, div[data-baseweb="select"] span {{
+      color: {COLOR_OSCURO} !important;
+    }}
+    ul[role="listbox"] li {{
+      color: {COLOR_OSCURO} !important;
+      background: #FFFFFF !important;
+    }}
+    ul[role="listbox"] li:hover {{
+      background: #F4E4E7 !important;
+    }}
+    </style>
+    """, unsafe_allow_html=True)
+
+
 _SENTINEL_NUEVO = "➕ Añadir nuevo..."
 
 
@@ -220,39 +262,66 @@ def _filtros(df, key_prefix):
     return vista
 
 
+def _seccion(titulo):
+    st.markdown(
+        f'<div class="inc-seccion">{titulo}</div>',
+        unsafe_allow_html=True,
+    )
+
+
 def _pagina_registro():
     catalogo = obtener_catalogo()
 
     st.markdown("#### 📝 Nueva incidencia")
     with st.form("form_incidencia", clear_on_submit=True):
-        c1, c2, c3 = st.columns(3)
-        with c1:
-            fecha_incidencia = st.date_input("Fecha incidencia *", value=date.today())
-            albaran = st.text_input("Nº albarán / pedido")
-            referencia = st.text_input("Referencia producto")
-        with c2:
-            fecha_expedicion = st.date_input("Fecha expedición", value=None)
-            destino = st.text_input("Destino (plataforma/almacén)")
-            bandejas = st.number_input("Bandejas afectadas *", min_value=0, step=1)
-        with c3:
-            matricula_ruta = st.text_input("Matrícula / ruta")
-            cajas = st.number_input("Cajas (manual)", min_value=0.0, step=1.0,
-                                     help="Cálculo automático desde bandejas pendiente de datos de bandejas/caja por referencia. Por ahora, introduce el valor a mano.")
+        with st.container(border=True):
+            _seccion("📦 Expedición")
+            c1, c2, c3 = st.columns(3)
+            with c1:
+                fecha_incidencia = st.date_input("Fecha incidencia *", value=date.today())
+                albaran = st.text_input("Nº albarán / pedido")
+            with c2:
+                fecha_expedicion = st.date_input("Fecha expedición", value=None)
+                destino = st.text_input("Destino (plataforma/almacén)")
+            with c3:
+                matricula_ruta = st.text_input("Matrícula / ruta")
+                referencia = st.text_input("Referencia producto")
 
-        cliente = _selector_con_alta("Cliente", catalogo["clientes"], "cliente")
-        transportista = _selector_con_alta("Transportista", catalogo["transportistas"], "transportista")
+        with st.container(border=True):
+            _seccion("🚚 Cliente y transportista")
+            cc1, cc2 = st.columns(2)
+            with cc1:
+                cliente = _selector_con_alta("Cliente", catalogo["clientes"], "cliente")
+            with cc2:
+                transportista = _selector_con_alta("Transportista", catalogo["transportistas"], "transportista")
 
-        c4, c5 = st.columns(2)
-        with c4:
-            motivo = st.selectbox("Motivo *", MOTIVOS)
-            responsabilidad = st.selectbox("Responsabilidad", RESPONSABILIDADES)
-        with c5:
-            estado = st.selectbox("Estado", ESTADOS, index=0)
-            coste_producto = st.number_input("Coste producto (€)", min_value=0.0, step=1.0)
-            coste_porte = st.number_input("Coste porte (€)", min_value=0.0, step=1.0)
+        with st.container(border=True):
+            _seccion("⚠️ Detalle de la incidencia")
+            d1, d2, d3, d4 = st.columns(4)
+            with d1:
+                bandejas = st.number_input("Bandejas afectadas *", min_value=0, step=1)
+            with d2:
+                cajas = st.number_input("Cajas (manual)", min_value=0.0, step=1.0,
+                                         help="Cálculo automático desde bandejas pendiente de datos de bandejas/caja por referencia. Por ahora, introduce el valor a mano.")
+            with d3:
+                motivo = st.selectbox("Motivo *", MOTIVOS)
+            with d4:
+                responsabilidad = st.selectbox("Responsabilidad", RESPONSABILIDADES)
 
-        accion_correctiva = st.text_area("Acción correctiva")
-        observaciones = st.text_area("Observaciones")
+        with st.container(border=True):
+            _seccion("💶 Costes y seguimiento")
+            e1, e2, e3 = st.columns(3)
+            with e1:
+                coste_producto = st.number_input("Coste producto (€)", min_value=0.0, step=1.0)
+            with e2:
+                coste_porte = st.number_input("Coste porte (€)", min_value=0.0, step=1.0)
+            with e3:
+                estado = st.selectbox("Estado", ESTADOS, index=0)
+
+        with st.container(border=True):
+            _seccion("📝 Notas")
+            accion_correctiva = st.text_area("Acción correctiva")
+            observaciones = st.text_area("Observaciones")
 
         submitted = st.form_submit_button("💾 Guardar incidencia", use_container_width=True)
 
@@ -527,11 +596,75 @@ def _pagina_informe():
         st.plotly_chart(fig_cl, use_container_width=True)
 
 
+_COLUMNAS_EXPORT = {
+    "fecha_incidencia": "Fecha incidencia",
+    "fecha_expedicion": "Fecha expedición",
+    "albaran": "Albarán",
+    "cliente": "Cliente",
+    "destino": "Destino",
+    "transportista": "Transportista",
+    "matricula_ruta": "Matrícula/ruta",
+    "referencia": "Referencia",
+    "bandejas": "Bandejas",
+    "cajas": "Cajas",
+    "motivo": "Motivo",
+    "responsabilidad": "Responsabilidad",
+    "coste_producto": "Coste producto (€)",
+    "coste_porte": "Coste porte (€)",
+    "coste_total": "Coste total (€)",
+    "estado": "Estado",
+    "accion_correctiva": "Acción correctiva",
+    "observaciones": "Observaciones",
+    "usuario_alta": "Dado de alta por",
+}
+
+
+def _pagina_exportar():
+    df, err = listar_incidencias()
+    if err:
+        st.error(f"❌ Error al leer incidencias: {err}")
+        return
+    if df.empty:
+        st.info("Todavía no hay incidencias registradas.")
+        return
+
+    st.markdown("#### 🔎 Filtros a exportar")
+    vista = _filtros(df, "exp")
+    st.caption(f"{len(vista)} de {len(df)} incidencias seleccionadas para exportar")
+
+    if vista.empty:
+        st.warning("No hay incidencias que cumplan estos filtros.")
+        return
+
+    cols = [c for c in _COLUMNAS_EXPORT if c in vista.columns]
+    export_df = vista[cols].rename(columns=_COLUMNAS_EXPORT).sort_values(
+        _COLUMNAS_EXPORT["fecha_incidencia"]
+    )
+    for col_fecha in [_COLUMNAS_EXPORT["fecha_incidencia"], _COLUMNAS_EXPORT["fecha_expedicion"]]:
+        if col_fecha in export_df.columns:
+            export_df[col_fecha] = pd.to_datetime(export_df[col_fecha]).dt.strftime('%d/%m/%Y')
+
+    st.dataframe(export_df, use_container_width=True, height=300)
+
+    buf = BytesIO()
+    export_df.to_excel(buf, index=False, sheet_name="Incidencias")
+    buf.seek(0)
+    nombre = f"incidencias_transporte_{date.today().strftime('%Y%m%d')}.xlsx"
+    st.download_button(
+        "📥 Exportar a Excel",
+        buf,
+        nombre,
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        use_container_width=True,
+    )
+
+
 def mostrar_incidencias():
     """Punto de entrada único llamado desde app48.py. Cualquier excepción
     queda contenida aquí; nunca debe tumbar el resto de la aplicación."""
     st.header("🚚 Incidencias de Transporte y Devoluciones")
     try:
+        _inject_css()
         tab_registro, tab_informe, tab_exportar = st.tabs(
             ["📝 Registro", "📊 Informe", "📤 Exportar"]
         )
@@ -540,7 +673,7 @@ def mostrar_incidencias():
         with tab_informe:
             _pagina_informe()
         with tab_exportar:
-            st.info("🚧 Disponible en la Fase 3 (exportación a Excel).")
+            _pagina_exportar()
     except Exception as e:
         st.error(f"❌ Error en el módulo de Incidencias de Transporte: {e}")
         st.caption("El resto de la aplicación no se ve afectada por este error.")
