@@ -191,6 +191,35 @@ def _selector_con_alta(label, opciones, key):
     return sel
 
 
+def _filtros(df, key_prefix):
+    """Bloque de filtros reutilizado entre Registro e Informe. Devuelve el
+    DataFrame filtrado."""
+    fc1, fc2, fc3, fc4, fc5 = st.columns(5)
+    with fc1:
+        f_desde = st.date_input("Desde", value=None, key=f"{key_prefix}_desde")
+    with fc2:
+        f_hasta = st.date_input("Hasta", value=None, key=f"{key_prefix}_hasta")
+    with fc3:
+        f_cliente = st.selectbox("Cliente", ["Todos"] + sorted(df['cliente'].dropna().unique().tolist()), key=f"{key_prefix}_cliente")
+    with fc4:
+        f_transportista = st.selectbox("Transportista", ["Todos"] + sorted(df['transportista'].dropna().unique().tolist()), key=f"{key_prefix}_transportista")
+    with fc5:
+        f_estado = st.selectbox("Estado", ["Todos"] + ESTADOS, key=f"{key_prefix}_estado")
+
+    vista = df.copy()
+    if f_desde:
+        vista = vista[vista['fecha_incidencia'] >= pd.Timestamp(f_desde)]
+    if f_hasta:
+        vista = vista[vista['fecha_incidencia'] <= pd.Timestamp(f_hasta)]
+    if f_cliente != "Todos":
+        vista = vista[vista['cliente'] == f_cliente]
+    if f_transportista != "Todos":
+        vista = vista[vista['transportista'] == f_transportista]
+    if f_estado != "Todos":
+        vista = vista[vista['estado'] == f_estado]
+    return vista
+
+
 def _pagina_registro():
     catalogo = obtener_catalogo()
 
@@ -282,31 +311,7 @@ def _pagina_registro():
         st.info("Todavía no hay incidencias registradas.")
         return
 
-    # ── Filtros ──
-    fc1, fc2, fc3, fc4, fc5 = st.columns(5)
-    with fc1:
-        f_desde = st.date_input("Desde", value=None, key="f_desde")
-    with fc2:
-        f_hasta = st.date_input("Hasta", value=None, key="f_hasta")
-    with fc3:
-        f_cliente = st.selectbox("Cliente", ["Todos"] + sorted(df['cliente'].dropna().unique().tolist()), key="f_cliente")
-    with fc4:
-        f_transportista = st.selectbox("Transportista", ["Todos"] + sorted(df['transportista'].dropna().unique().tolist()), key="f_transportista")
-    with fc5:
-        f_estado = st.selectbox("Estado", ["Todos"] + ESTADOS, key="f_estado")
-
-    vista = df.copy()
-    if f_desde:
-        vista = vista[vista['fecha_incidencia'] >= pd.Timestamp(f_desde)]
-    if f_hasta:
-        vista = vista[vista['fecha_incidencia'] <= pd.Timestamp(f_hasta)]
-    if f_cliente != "Todos":
-        vista = vista[vista['cliente'] == f_cliente]
-    if f_transportista != "Todos":
-        vista = vista[vista['transportista'] == f_transportista]
-    if f_estado != "Todos":
-        vista = vista[vista['estado'] == f_estado]
-
+    vista = _filtros(df, "reg")
     st.caption(f"{len(vista)} de {len(df)} incidencias")
 
     cols_editor = [
@@ -362,12 +367,180 @@ def _pagina_registro():
             st.info("No había cambios que guardar.")
 
 
+# ─────────────────────────────────────────────
+# UI — PÁGINA DE INFORME (Fase 2)
+# ─────────────────────────────────────────────
+
+def _pagina_informe():
+    import plotly.express as px
+
+    df, err = listar_incidencias()
+    if err:
+        st.error(f"❌ Error al leer incidencias: {err}")
+        return
+    if df.empty:
+        st.info("Todavía no hay incidencias registradas.")
+        return
+
+    st.markdown("#### 🔎 Filtros")
+    vista = _filtros(df, "inf")
+    st.caption(f"{len(vista)} de {len(df)} incidencias")
+
+    if vista.empty:
+        st.warning("No hay incidencias que cumplan estos filtros.")
+        return
+
+    # ── KPIs ──
+    total_inc = len(vista)
+    coste_total = vista['coste_total'].sum() if 'coste_total' in vista.columns else 0
+    coste_medio = coste_total / total_inc if total_inc else 0
+    bandejas_total = int(vista['bandejas'].sum()) if 'bandejas' in vista.columns else 0
+    pct_abiertas = (vista['estado'].isin(["Abierto", "En gestión"]).mean() * 100) if 'estado' in vista.columns else 0
+
+    k1, k2, k3, k4, k5 = st.columns(5)
+    k1.metric("📄 Incidencias", total_inc)
+    k2.metric("💶 Coste total", f"{coste_total:,.2f} €".replace(",", "."))
+    k3.metric("📊 Coste medio", f"{coste_medio:,.2f} €".replace(",", "."))
+    k4.metric("📦 Bandejas afectadas", bandejas_total)
+    k5.metric("🔴 % Abiertas/En gestión", f"{pct_abiertas:.1f} %")
+
+    st.divider()
+
+    # ── Evolución mensual ──
+    st.subheader("📅 Evolución mensual")
+    evol = vista.dropna(subset=['fecha_incidencia']).copy()
+    if not evol.empty:
+        evol['Mes'] = evol['fecha_incidencia'].dt.to_period('M').dt.to_timestamp()
+        evol_mes = evol.groupby('Mes').agg(
+            Incidencias=('fecha_incidencia', 'count'),
+            Coste_total=('coste_total', 'sum'),
+        ).reset_index()
+        evol_mes['Mes_str'] = evol_mes['Mes'].dt.strftime('%b %Y')
+
+        ce1, ce2 = st.columns(2)
+        with ce1:
+            fig_n = px.bar(
+                evol_mes, x='Mes_str', y='Incidencias',
+                text='Incidencias', color='Incidencias',
+                color_continuous_scale='Reds',
+                title='Nº de incidencias por mes',
+                labels={'Mes_str': 'Mes'},
+            )
+            fig_n.update_traces(textposition='outside')
+            fig_n.update_layout(showlegend=False, coloraxis_showscale=False)
+            st.plotly_chart(fig_n, use_container_width=True)
+        with ce2:
+            fig_c = px.bar(
+                evol_mes, x='Mes_str', y='Coste_total',
+                text='Coste_total', color='Coste_total',
+                color_continuous_scale='Reds',
+                title='Coste total por mes (€)',
+                labels={'Mes_str': 'Mes', 'Coste_total': 'Coste (€)'},
+            )
+            fig_c.update_traces(texttemplate='%{text:.0f} €', textposition='outside')
+            fig_c.update_layout(showlegend=False, coloraxis_showscale=False)
+            st.plotly_chart(fig_c, use_container_width=True)
+    else:
+        st.info("No hay fechas válidas para mostrar la evolución mensual.")
+
+    st.divider()
+
+    # ── Motivo y responsabilidad ──
+    st.subheader("🧭 Motivo y responsabilidad")
+    cm1, cm2 = st.columns(2)
+    with cm1:
+        por_motivo = vista.groupby('motivo').agg(
+            Incidencias=('motivo', 'count'), Coste_total=('coste_total', 'sum')
+        ).reset_index().sort_values('Incidencias', ascending=True)
+        fig_m = px.bar(
+            por_motivo, x='Incidencias', y='motivo', orientation='h',
+            text='Incidencias', color='Incidencias',
+            color_continuous_scale='Blues',
+            title='Incidencias por motivo',
+            labels={'motivo': 'Motivo'},
+        )
+        fig_m.update_traces(textposition='outside')
+        fig_m.update_layout(showlegend=False, coloraxis_showscale=False)
+        st.plotly_chart(fig_m, use_container_width=True)
+    with cm2:
+        por_resp = vista.groupby('responsabilidad').agg(
+            Incidencias=('responsabilidad', 'count'), Coste_total=('coste_total', 'sum')
+        ).reset_index().sort_values('Incidencias', ascending=True)
+        fig_r = px.bar(
+            por_resp, x='Incidencias', y='responsabilidad', orientation='h',
+            text='Incidencias', color='Incidencias',
+            color_continuous_scale='Oranges',
+            title='Incidencias por responsabilidad',
+            labels={'responsabilidad': 'Responsabilidad'},
+        )
+        fig_r.update_traces(textposition='outside')
+        fig_r.update_layout(showlegend=False, coloraxis_showscale=False)
+        st.plotly_chart(fig_r, use_container_width=True)
+
+    st.divider()
+
+    # ── Estado ──
+    st.subheader("📌 Distribución por estado")
+    por_estado = vista.groupby('estado').size().reset_index(name='Incidencias')
+    fig_e = px.bar(
+        por_estado, x='estado', y='Incidencias', text='Incidencias',
+        color='estado', color_discrete_map=COLOR_ESTADO,
+        title='Incidencias por estado',
+        labels={'estado': 'Estado'},
+    )
+    fig_e.update_traces(textposition='outside')
+    fig_e.update_layout(showlegend=False)
+    st.plotly_chart(fig_e, use_container_width=True)
+
+    st.divider()
+
+    # ── Top transportistas y clientes ──
+    st.subheader("🏆 Top transportistas y clientes")
+    ct1, ct2 = st.columns(2)
+    with ct1:
+        top_transp = vista.groupby('transportista').agg(
+            Incidencias=('transportista', 'count'), Coste_total=('coste_total', 'sum')
+        ).reset_index().nlargest(10, 'Coste_total').sort_values('Coste_total', ascending=True)
+        fig_t = px.bar(
+            top_transp, x='Coste_total', y='transportista', orientation='h',
+            text='Coste_total', color='Coste_total',
+            color_continuous_scale='Reds',
+            title='Top 10 transportistas por coste (€)',
+            labels={'transportista': 'Transportista', 'Coste_total': 'Coste (€)'},
+        )
+        fig_t.update_traces(texttemplate='%{text:.0f} €', textposition='outside')
+        fig_t.update_layout(showlegend=False, coloraxis_showscale=False)
+        st.plotly_chart(fig_t, use_container_width=True)
+    with ct2:
+        top_cli = vista.groupby('cliente').agg(
+            Incidencias=('cliente', 'count'), Coste_total=('coste_total', 'sum')
+        ).reset_index().nlargest(10, 'Incidencias').sort_values('Incidencias', ascending=True)
+        fig_cl = px.bar(
+            top_cli, x='Incidencias', y='cliente', orientation='h',
+            text='Incidencias', color='Incidencias',
+            color_continuous_scale='Purples',
+            title='Top 10 clientes por nº de incidencias',
+            labels={'cliente': 'Cliente'},
+        )
+        fig_cl.update_traces(textposition='outside')
+        fig_cl.update_layout(showlegend=False, coloraxis_showscale=False)
+        st.plotly_chart(fig_cl, use_container_width=True)
+
+
 def mostrar_incidencias():
     """Punto de entrada único llamado desde app48.py. Cualquier excepción
     queda contenida aquí; nunca debe tumbar el resto de la aplicación."""
     st.header("🚚 Incidencias de Transporte y Devoluciones")
     try:
-        _pagina_registro()
+        tab_registro, tab_informe, tab_exportar = st.tabs(
+            ["📝 Registro", "📊 Informe", "📤 Exportar"]
+        )
+        with tab_registro:
+            _pagina_registro()
+        with tab_informe:
+            _pagina_informe()
+        with tab_exportar:
+            st.info("🚧 Disponible en la Fase 3 (exportación a Excel).")
     except Exception as e:
         st.error(f"❌ Error en el módulo de Incidencias de Transporte: {e}")
         st.caption("El resto de la aplicación no se ve afectada por este error.")
