@@ -476,6 +476,7 @@ def check_password():
                 pwd_id       = get_password("ID_PASSWORD",        "aldelis_id")
                 pwd_almacen  = get_password("ALMACEN_PASSWORD",   "aldelis_almacen")
                 pwd_comercial= get_password("COMERCIAL_PASSWORD", "comercial")
+                pwd_expediciones = get_password("EXPEDICIONES_PASSWORD", "expediciones")
                 if pwd == pwd_admin:
                     st.session_state.autenticado = True
                     st.session_state.rol_usuario = "admin"
@@ -494,6 +495,11 @@ def check_password():
                 elif pwd == pwd_comercial:
                     st.session_state.autenticado = True
                     st.session_state.rol_usuario = "comercial"
+                    st.session_state._splash = True
+                    st.rerun()
+                elif pwd == pwd_expediciones:
+                    st.session_state.autenticado = True
+                    st.session_state.rol_usuario = "expediciones"
                     st.session_state._splash = True
                     st.rerun()
                 else:
@@ -1093,14 +1099,17 @@ GRUPOS_ADMIN = {
     "Gestión": ["🔗 Materiales", "🏷️ Etiquetas", "🚢 Tránsito", "📦 Envases"],
     "Producción": ["🔍 Previsión y Obsoletos", "🔄 Pedido Proveedor"],
     "Análisis": ["🎯 SS Óptimo"],
+    "Transporte": ["🚚 Incidencias Transporte"],
 }
 GRUPOS_ID       = {"Etiquetas":    ["🏷️ Etiquetas"]}
 GRUPOS_ALMACEN  = {"Etiquetas":    ["🏷️ Etiquetas"]}
 GRUPOS_COMERCIAL= {"Logística":    ["📐 Calculadora Paletizado"]}
+GRUPOS_EXPEDICIONES = {"Transporte": ["🚚 Incidencias Transporte"]}
 
-GRUPOS = (GRUPOS_ADMIN    if ROL == "admin"    else
-          GRUPOS_ID        if ROL == "id"       else
-          GRUPOS_COMERCIAL if ROL == "comercial" else
+GRUPOS = (GRUPOS_ADMIN        if ROL == "admin"        else
+          GRUPOS_ID            if ROL == "id"           else
+          GRUPOS_COMERCIAL     if ROL == "comercial"     else
+          GRUPOS_EXPEDICIONES  if ROL == "expediciones"  else
           GRUPOS_ALMACEN)
 
 LABELS_MENU = {
@@ -1120,11 +1129,12 @@ LABELS_MENU = {
     "🤖 Agente IA": "Agente IA",
     "📐 Calculadora Paletizado": "Calculadora Palet",
     "🔄 Pedido Proveedor": "Pedido Proveedor",
+    "🚚 Incidencias Transporte": "Incidencias",
 }
 
 # Rol badge en sidebar
-rol_label = {"admin": "Admin", "id": "I+D", "almacen": "Almacén", "comercial": "Comercial"}.get(ROL, ROL)
-rol_color = {"admin": "#C8102E", "id": "#2980B9", "almacen": "#27AE60", "comercial": "#8E44AD"}.get(ROL, "#888")
+rol_label = {"admin": "Admin", "id": "I+D", "almacen": "Almacén", "comercial": "Comercial", "expediciones": "Expediciones"}.get(ROL, ROL)
+rol_color = {"admin": "#C8102E", "id": "#2980B9", "almacen": "#27AE60", "comercial": "#8E44AD", "expediciones": "#D68910"}.get(ROL, "#888")
 st.sidebar.markdown(f'<div style="margin-bottom:12px;padding:6px 10px;background:rgba(255,255,255,0.06);border-radius:6px;font-size:11px;color:#BDC3C7;">Conectado como <span style="color:{rol_color};font-weight:600;">{rol_label}</span></div>', unsafe_allow_html=True)
 
 for grupo, items in GRUPOS.items():
@@ -5537,3 +5547,16 @@ elif menu == "🔄 Pedido Proveedor":
     _buf_pp.seek(0)
     st.download_button("📥 Exportar Excel", _buf_pp, "pedido_proveedor.xlsx",
                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
+# ══════════════════════════════════════════════
+# MÓDULO: INCIDENCIAS DE TRANSPORTE Y DEVOLUCIONES
+# Aislado en core/incidencias.py — import perezoso y defensivo: un fallo
+# aquí no debe afectar al resto de la app de aprovisionamiento.
+# ══════════════════════════════════════════════
+elif menu == "🚚 Incidencias Transporte":
+    try:
+        from core.incidencias import mostrar_incidencias
+        mostrar_incidencias()
+    except Exception as _e_inc:
+        st.error(f"❌ No se pudo cargar el módulo de Incidencias de Transporte: {_e_inc}")
+        st.caption("El resto de la aplicación no se ve afectada por este error.")
