@@ -5471,20 +5471,33 @@ elif menu == "🔄 Pedido Proveedor":
            'Unidades_palet', 'En_transito', 'En_transito2', 'Situacion', 'Pedido_trad', 'Pedido_prev']
     res_pp = df_pe_pp.merge(df_pp[[c for c in _mc if c in df_pp.columns]], on='Referencia', how='left')
 
+    # ── Bloqueo: prohibido lanzar pedido a referencias con CDM 0 o BAJA ──
+    res_pp['Cdm'] = pd.to_numeric(res_pp.get('Cdm', 0), errors='coerce').fillna(0)
+    res_pp['Situacion'] = (res_pp.get('Situacion', 'ACTIVA').astype(str).str.strip().str.upper()
+                            .replace('NAN', 'ACTIVA').fillna('ACTIVA'))
+    res_pp['Pedido_bloqueado'] = (res_pp['Cdm'] <= 0) | (res_pp['Situacion'] == 'BAJA')
+
     res_pp['Pedido_trad'] = res_pp['Pedido_trad'].fillna(0).astype(int)
     res_pp['Box_base']    = res_pp['Box_base'].fillna(0).astype(int)
+    res_pp.loc[res_pp['Pedido_bloqueado'], 'Pedido_trad'] = 0
     res_pp['Ajuste_trad'] = res_pp['Pedido_trad'] - res_pp['Box_base']
     if has_prev_pp:
         res_pp['Pedido_prev'] = res_pp['Pedido_prev'].fillna(0).astype(int)
+        res_pp.loc[res_pp['Pedido_bloqueado'], 'Pedido_prev'] = 0
         res_pp['Ajuste_prev'] = res_pp['Pedido_prev'] - res_pp['Box_base']
 
+    n_bloqueadas = int(res_pp['Pedido_bloqueado'].sum())
+    if n_bloqueadas:
+        st.warning(f"🚫 {n_bloqueadas} referencia(s) con CDM 0 o marcadas como BAJA: pedido bloqueado a 0 (no se permite lanzar pedido de compra).")
+
     # ── KPIs ──
-    _kc1, _kc2, _kc3, _kc4 = st.columns(4)
+    _kc1, _kc2, _kc3, _kc4, _kc5 = st.columns(5)
     _kc1.metric("Referencias", len(res_pp))
     _kc2.metric("Pedido trad. (pal.)", int(res_pp['Pedido_trad'].sum()))
     _kc3.metric("Base pedido (pal.)", int(res_pp['Box_base'].sum()))
     _net = int(res_pp['Ajuste_trad'].sum())
     _kc4.metric("Ajuste neto (pal.)", f"{'+' if _net > 0 else ''}{_net}")
+    _kc5.metric("🚫 Bloqueadas", n_bloqueadas)
 
     # ── Tabla HTML ──
     def _badge_pp(v):
@@ -5504,6 +5517,7 @@ elif menu == "🔄 Pedido Proveedor":
     _rows_html = []
     for _, _r in res_pp.iterrows():
         _sit   = str(_r.get('Situacion', 'ACTIVA')).strip().upper()
+        _bloq  = bool(_r.get('Pedido_bloqueado', False))
         _stk_u = _r.get('Stock_merca', 0) if _sit == 'MERCA' else _r.get('Stock_interno', 0)
         _up    = max(_r.get('Unidades_palet', 1) or 1, 1)
         _stk_p = math.floor((_stk_u or 0) / _up)
@@ -5515,18 +5529,22 @@ elif menu == "🔄 Pedido Proveedor":
         _bv    = int(_r['Box_base'])
         _at    = int(_r['Ajuste_trad'])
 
+        _ped_html = ('<span style="background:#F5D6D6;color:#922B21;padding:2px 7px;border-radius:4px;font-weight:600;" '
+                     'title="CDM 0 o referencia BAJA: prohibido lanzar pedido">🚫 bloqueado</span>') if _bloq else f"<b>{_tv}</b>"
+
         _cols = [
             f"<b>{_r['Referencia']}</b>",
             f'<span style="font-size:11px;">{_desc}</span>',
             str(_stk_p), str(_ss_p), str(_cdm_p), str(_lead),
-            f"<b>{_tv}</b>", str(_bv), _badge_pp(_at)
+            _ped_html, str(_bv), _badge_pp(_at)
         ]
         if has_prev_pp:
             _pv = int(_r.get('Pedido_prev', 0) or 0)
             _ap = int(_r.get('Ajuste_prev', 0) or 0)
-            _cols += [str(_pv), _badge_pp(_ap)]
+            _cols += [_ped_html if _bloq else str(_pv), _badge_pp(_ap)]
 
-        _rows_html.append("<tr><td>" + "</td><td>".join(_cols) + "</td></tr>")
+        _row_style = ' style="background:#FBF2F2;opacity:0.85;"' if _bloq else ''
+        _rows_html.append(f"<tr{_row_style}><td>" + "</td><td>".join(_cols) + "</td></tr>")
 
     _hdr_html  = "<th>" + "</th><th>".join(_hdrs) + "</th>"
     _body_html = "\n".join(_rows_html)
